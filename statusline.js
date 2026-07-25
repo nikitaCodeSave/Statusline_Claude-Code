@@ -105,6 +105,9 @@ async function main() {
 
   const branch = input.worktree?.branch || getGitBranch(cwd);
   const agentName = input.agent?.name;
+  // Active level for this turn, after any silent downgrade — not the configured one.
+  // Absent on models without reasoning effort. Same value as $CLAUDE_EFFORT.
+  const effort = input.effort?.level;
   const ctxColor = usageColor(pct);
 
   // Rate limits — joined with dot as a single group
@@ -116,7 +119,7 @@ async function main() {
   const identity = [
     agentName ? `${C.orange}${agentName}${C.reset}` : null,
     branch ? `${C.magenta}${branch}${C.reset}` : null,
-    `${C.cyan}${C.bold}${model}${C.reset}`,
+    `${C.cyan}${C.bold}${model}${C.reset}${effort ? ` ${C.dim}${effort}${C.reset}` : ''}`,
   ].filter(Boolean).join(DOT);
 
   const costStr = `${cost > 0 ? C.yellow : C.dim}$${cost.toFixed(2)}${C.reset}`;
