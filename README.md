@@ -15,11 +15,22 @@ Claude Code не показывает ключевую информацию о �
 ## Что отображается
 
 ```
-Строка 1:  [agent] · [branch] · [model]  │  [used/limit (pct%)]
+Строка 1:  [agent] · [branch] · [model] [effort]  │  [used/limit (pct%)]
 Строка 2:  [$cost]  │  [5h pct% @reset · 7d pct% @reset]  │  [⏱ duration]
 ```
 
 Все элементы адаптивны — если данных нет, элемент скрывается автоматически.
+
+### Effort
+
+Приглушённый суффикс после модели — фактический уровень reasoning effort текущего хода, уже с учётом молчаливого понижения для выбранной модели. Это не то, что записано в конфиге: тот же источник, что переменная `$CLAUDE_EFFORT` для хуков и Bash. Полезно как индикатор — если уровень из настроек не применился, здесь это видно сразу.
+
+```
+main · Opus 5 (1M context) high  │  75k/1.0m (8%)
+main · Haiku 4.5  │  82k/200k (41%)
+```
+
+Claude Code присылает поле только на моделях с поддержкой reasoning effort — на остальных (`claude-3-*`, Opus 4.0/4.1, Sonnet 4.0/4.5, вся линейка Haiku) сегмент не рисуется вовсе, а не показывается как «unknown».
 
 ### Цветовые пороги
 
@@ -32,9 +43,43 @@ Claude Code не показывает ключевую информацию о �
 | 80–89%   | оранжевый | Зона auto-compact                   |
 | >= 90%   | красный   | Критично, контекст почти исчерпан   |
 
+## Панель фоновых агентов
+
+Второй скрипт, `statusline-subagent.js`, декорирует строки фоновых агентов в панели задач (`Ctrl+B`). Дефолтная строка показывает имя, время и счётчик токенов; здесь к ним добавляются модель, effort, размер контекстного окна и спарклайн активности.
+
+![Панель фоновых агентов](img/agents_example.png)
+
+Слева Claude Code дорисовывает собственный статус-глиф — скрипт отвечает за всё, что после него.
+
+| Элемент | Назначение |
+|---------|------------|
+| имя | выровнено в колонку шириной до 28 знакомест; на узкой панели колонка сжимается, лишнее обрезается многоточием |
+| модель + effort | чего в дефолтной строке нет вовсе — видно, тем ли считает агент |
+| токены / окно | текущий расход против лимита именно этой модели |
+| спарклайн | активность по дельтам токенов между тиками |
+| время | с момента запуска агента |
+| статус | печатается, только если он не `running` — иначе дублировал бы глиф |
+
+**Спарклайн — главное, чего нет в дефолте.** Он строится по приросту токенов между тиками, а не по абсолютным значениям, поэтому застрявший агент виден сразу: `▁▁▁` означает, что за всё окно наблюдения не было ни одного прироста. По дефолтной строке застрявший и работающий агенты неотличимы — счётчик токенов у обоих просто стоит на месте.
+
+Две оговорки при чтении:
+
+- Ровный `███` — это не застой, а наоборот, идеально равномерное потребление: все приросты равны максимуму. Дно (`▁▁▁`) и потолок (`███`) выглядят одинаково плоско, но означают противоположное.
+- Высота нормируется по максимуму внутри своей строки, поэтому показывает характер активности, а не темп. Агент с приростами по 200 токенов даст такой же высокий столбик, как агент с приростами по 60 000. Абсолютную величину смотрите в соседнем поле с токенами.
+
+Декорируются только фоновые (dispatched) агенты. Строки workflow и in-process teammates Claude Code рендерит по-своему.
+
+**Размен:** декорация замещает строку целиком, поэтому счётчик `N queued` из дефолтного вида пропадает — этого поля во входных данных нет.
+
+У скрипта есть тесты — 15 сценариев, включая выравнивание колонки при кириллице, CJK, составных эмодзи и комбинирующей диакритике:
+
+```bash
+node --test statusline-subagent.test.js
+```
+
 ## Требования
 
-- **Claude Code** >= 1.0.33 (поддержка `statusLine` в settings.json)
+- **Claude Code** >= 1.0.33 (поддержка `statusLine` в settings.json). Ключ `subagentStatusLine` проверен на 2.1.220
 - **Node.js** >= 18
 - Терминал с поддержкой true-color (RGB)
 
@@ -56,9 +101,9 @@ Claude Code не показывает ключевую информацию о �
 <summary>Linux / macOS</summary>
 
 ```bash
-git clone https://github.com/nikicat/claude-code-statusline.git
-cd claude-code-statusline
-cp statusline.js ~/.claude/statusline.js
+git clone https://github.com/nikitaCodeSave/Statusline_Claude-Code.git
+cd Statusline_Claude-Code
+cp statusline.js statusline-subagent.js ~/.claude/
 ```
 
 Добавьте в `~/.claude/settings.json`:
@@ -68,11 +113,15 @@ cp statusline.js ~/.claude/statusline.js
   "statusLine": {
     "type": "command",
     "command": "node ~/.claude/statusline.js"
+  },
+  "subagentStatusLine": {
+    "type": "command",
+    "command": "node ~/.claude/statusline-subagent.js"
   }
 }
 ```
 
-Если файл уже содержит другие настройки, добавьте ключ `statusLine` к существующим. Перезапустите Claude Code.
+Если файл уже содержит другие настройки, добавьте ключи к существующим. Панель фоновых агентов необязательна — можно поставить только `statusLine`. Перезапустите Claude Code.
 
 </details>
 
@@ -80,9 +129,10 @@ cp statusline.js ~/.claude/statusline.js
 <summary>Windows</summary>
 
 ```powershell
-git clone https://github.com/nikicat/claude-code-statusline.git
-cd claude-code-statusline
+git clone https://github.com/nikitaCodeSave/Statusline_Claude-Code.git
+cd Statusline_Claude-Code
 copy statusline.js %USERPROFILE%\.claude\statusline.js
+copy statusline-subagent.js %USERPROFILE%\.claude\statusline-subagent.js
 ```
 
 Добавьте в `%USERPROFILE%\.claude\settings.json`:
@@ -92,11 +142,15 @@ copy statusline.js %USERPROFILE%\.claude\statusline.js
   "statusLine": {
     "type": "command",
     "command": "node ~/.claude/statusline.js"
+  },
+  "subagentStatusLine": {
+    "type": "command",
+    "command": "node ~/.claude/statusline-subagent.js"
   }
 }
 ```
 
-Если файл уже содержит другие настройки, добавьте ключ `statusLine` к существующим. Перезапустите Claude Code.
+Если файл уже содержит другие настройки, добавьте ключи к существующим. Панель фоновых агентов необязательна — можно поставить только `statusLine`. Перезапустите Claude Code.
 
 </details>
 
@@ -104,10 +158,11 @@ copy statusline.js %USERPROFILE%\.claude\statusline.js
 
 ```
 settings.json
-  └── statusLine.command → node ~/.claude/statusline.js (рендерер)
+  ├── statusLine.command         → node ~/.claude/statusline.js           (две строки внизу)
+  └── subagentStatusLine.command → node ~/.claude/statusline-subagent.js  (панель агентов)
 ```
 
-Claude Code передаёт JSON с данными сессии на stdin statusline.js при каждом обновлении. Скрипт рендерит две строки на stdout. Один файл, никаких хуков.
+Claude Code передаёт JSON на stdin при каждом обновлении и читает результат со stdout. `statusline.js` получает данные сессии и печатает две строки. `statusline-subagent.js` получает список фоновых задач и печатает NDJSON — по объекту `{id, content}` на задачу. Никаких хуков и зависимостей; второй скрипт можно не ставить.
 
 ## Лицензия
 
