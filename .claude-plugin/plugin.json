@@ -1,6 +1,6 @@
 {
   "name": "loopline",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Status band above the prompt with Claude Code session state: model and effort, uncommitted diff, context with growth and compactions, cost, rate-limit pace, prompt-cache clock, live turn counters, background agents and a stuck-call warning",
   "author": {
     "name": "nikitaCodeSave"

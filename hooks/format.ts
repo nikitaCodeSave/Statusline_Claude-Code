@@ -102,6 +102,22 @@ export function shortModel(id: string | null): string {
   return family.charAt(0).toUpperCase() + family.slice(1) + version.join('.') + (isWide ? '(1m)' : '')
 }
 
+/**
+ * The effort the settings pin for this model: its `modelSettings` entry (keyed by the canonical
+ * name, which also stands for the dated and `[1m]` spellings), else the top-level `effortLevel`.
+ */
+export function configuredEffort(settings: Readonly<Record<string, unknown>>, model: string): string | null {
+  const perModel = asRecord(settings.modelSettings)
+  const canonical = model.replace(/\[[^\]]*\]$/, '').replace(/-\d{8}$/, '')
+  const level = asRecord(perModel?.[canonical] ?? perModel?.[model])?.effortLevel
+  if (typeof level === 'string') return level
+  return typeof settings.effortLevel === 'string' ? settings.effortLevel : null
+}
+
+function asRecord(value: unknown): Readonly<Record<string, unknown>> | undefined {
+  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : undefined
+}
+
 export function limitLabel(kind: string): string {
   if (kind === 'five_hour') return '5h'
   if (kind === 'seven_day') return '7d'

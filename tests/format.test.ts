@@ -5,6 +5,7 @@ import {
   bar,
   callKey,
   compactLeft,
+  configuredEffort,
   crossed,
   editedPath,
   exhaustIn,
@@ -68,6 +69,16 @@ describe('formatting', () => {
     expect(shortModel('claude-haiku-4-5-20251001')).toBe('Haiku4.5')
     expect(shortModel('claude-sonnet-5-5[1m]')).toBe('Sonnet5.5(1m)')
     expect(shortModel('Opus 5.5')).toBe('Opus 5.5')
+  })
+
+  test('effort comes from the settings for the model first, then the global one', () => {
+    const perModel = { modelSettings: { 'claude-opus-5-5': { effortLevel: 'xhigh' } }, effortLevel: 'medium' }
+    expect(configuredEffort(perModel, 'claude-opus-5-5')).toBe('xhigh')
+    expect(configuredEffort(perModel, 'claude-opus-5-5[1m]')).toBe('xhigh')
+    expect(configuredEffort(perModel, 'claude-opus-5-5-20261001')).toBe('xhigh')
+    expect(configuredEffort(perModel, 'claude-sonnet-5-5')).toBe('medium')
+    expect(configuredEffort({ modelSettings: { 'claude-opus-5-5': {} } }, 'claude-opus-5-5')).toBeNull()
+    expect(configuredEffort({}, 'claude-opus-5-5')).toBeNull()
   })
 
   test('bar, crossed and shortstat', () => {

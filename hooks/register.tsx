@@ -4,6 +4,7 @@ import type { EngineInterface, Register, SessionRateLimit, ToolCallInput, ToolCa
 import {
   bandLines,
   callKey,
+  configuredEffort,
   crossed,
   editedPath,
   fmtReset,
@@ -192,7 +193,7 @@ async function refreshAll($: EngineInterface): Promise<void> {
   await update($, usageAtom, () => toUsage(usage.startedAt, usage.context, usage.rateLimits, usage.cost))
   const model = await $.session.model()
   const configured = await $.settings.read()
-  const effort = typeof configured.effortLevel === 'string' ? configured.effortLevel : null
+  const effort = configuredEffort(configured, model)
   await update($, identityAtom, id => ({ ...id, model: id.model ?? model, effort: id.effort ?? effort }))
   await refreshCompactAt($)
   await refreshGit($, await $.clock.now())
