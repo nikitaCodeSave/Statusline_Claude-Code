@@ -22,6 +22,8 @@ Done when `claude plugin list` shows `loopline@nikitacodesave` enabled and no se
 - `hooks/register.tsx` holds the hooks and every `$` call.
 - `types/index.d.ts` is the `$.state` contract. It declares every key `register.tsx` reads or writes.
 
+The maintainer loads this working copy in every session through `CLAUDE_CODE_PLUGIN_DIRS` in the `env` of `~/.claude/settings.json` (`claude plugin list` shows `loopline@inline`). An edit therefore reaches the live session when the turn that made it ends.
+
 The API's authority is the declaration file Claude Code writes into `.claude-plugin/types/` (gitignored) when it loads the mod with `claude --plugin-dir .`. The API is early access and moves between releases, so grep that file for the event or method at hand.
 
 Done when every check holds:
@@ -30,7 +32,7 @@ Done when every check holds:
 - `tsc -p .` is clean (the mod must have loaded once with `--plugin-dir .`).
 - `claude plugin test` passes, with a test for the changed behaviour: band text through `bandLines` in `tests/format.test.ts`, engine behaviour in `tests/loopline.test.ts`.
 - When band or spinner output changed: `node --experimental-strip-types scripts/render-screens.ts` re-rendered `img/`, you looked at the pictures, and the README's element table and states match them.
-- `version` in `.claude-plugin/plugin.json` is bumped when the change ships.
+- `version` in `.claude-plugin/plugin.json` is bumped when the change ships. Users get an update only with a new version: installed copies are cached by it.
 
 Gotchas:
 

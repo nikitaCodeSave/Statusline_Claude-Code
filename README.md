@@ -116,11 +116,15 @@ claude plugin install loopline@nikitacodesave
 ## Разработка
 
 ```bash
-claude --plugin-dir .                                         # загрузить мод из рабочей копии; правки подхватываются сами
+claude --plugin-dir .                                         # загрузить мод из рабочей копии на одну сессию
 claude plugin validate .                                      # статическая проверка, как при загрузке
 claude plugin test                                            # тесты из tests/
 node --experimental-strip-types scripts/render-screens.ts     # перерисовать img/ (Node 22.6+, Chrome)
 ```
+
+Чтобы рабочая копия грузилась в каждой сессии, добавьте в `env` файла `~/.claude/settings.json` переменную `CLAUDE_CODE_PLUGIN_DIRS` с абсолютным путём к папке. Для Desktop-приложения нужна ещё `CLAUDE_CODE_PLUGIN_DIR_WATCH=1`. Это тот же `--plugin-dir`, только постоянный: Anthropic советует разрабатывать на папке, а не на установленной копии. Мод появится в `claude plugin list` как `loopline@inline`; правки подхватываются сами. Версию из marketplace одновременно не ставьте: два плагина с одним именем конфликтуют.
+
+Публикация: поднимите `version` в `.claude-plugin/plugin.json` и запушьте в `main`. Установленные копии кэшируются по версии, без нового номера пользователи обновление не получат.
 
 При загрузке через `--plugin-dir` Claude Code кладёт типы API своей версии в `.claude-plugin/types/`, после этого `tsc -p .` проверяет типы. API модов в статусе early access и меняется между версиями. Мод проверен на Claude Code 2.1.291.
 
