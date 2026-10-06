@@ -1,0 +1,4 @@
+{
+  "description": "loopline: status band and agent-loop tooling",
+  "modules": ["./register.tsx"]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "nikitacodesave",
+  "description": "loopline: a Claude Code mod that shows session state in a band above the prompt",
+  "owner": {
+    "name": "nikitaCodeSave"
+  },
+  "plugins": [
+    {
+      "name": "loopline",
+      "source": "./",
+      "description": "Status band above the prompt with Claude Code session state: model and effort, uncommitted diff, context with growth and compactions, cost, rate-limit pace, prompt-cache clock, live turn counters, background agents and a stuck-call warning"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "loopline",
+  "version": "1.0.0",
+  "description": "Status band above the prompt with Claude Code session state: model and effort, uncommitted diff, context with growth and compactions, cost, rate-limit pace, prompt-cache clock, live turn counters, background agents and a stuck-call warning",
+  "author": {
+    "name": "nikitaCodeSave"
+  },
+  "homepage": "https://github.com/nikitaCodeSave/Statusline_Claude-Code",
+  "repository": "https://github.com/nikitaCodeSave/Statusline_Claude-Code",
+  "license": "MIT",
+  "keywords": [
+    "statusline",
+    "mod",
+    "context",
+    "rate-limits",
+    "prompt-cache"
+  ],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "stuckThreshold": {
+      "type": "number",
+      "title": "Stuck-call threshold",
+      "description": "Warn when the same tool call fails this many times in a row within a turn.",
+      "default": 3
+    }
+  }
+}
