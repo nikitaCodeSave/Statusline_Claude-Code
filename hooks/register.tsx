@@ -47,6 +47,7 @@ const limitSeen = new Map<string, number>()
 let ctxSeen: number | undefined
 let gitCheckedAt = 0
 let modelSeen = ''
+let refreshPending = false
 
 type Settings = { stuckThreshold: number }
 
@@ -61,20 +62,26 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  // /clear, /resume and /branch reset $.state without a new session.start.
-  on('classic.SessionStart', { source: ['clear', 'resume', 'fork'] }, async ($, e, next) => {
-    resetBookkeeping()
-    await refreshAll($)
-    if (typeof e.seconds_since_last_response === 'number') {
-      const at = (await $.clock.now()) - e.seconds_since_last_response * 1000
-      await update($, cacheAtom, () => at)
+  // Native session events, not classic.*: where managed settings exist, the built-in security
+  // plugin sits in the prepend tier and sends classic events past the user tier, so a classic
+  // hook here never runs.
+  // /clear and /resume end the session without a new session.start, and $.state starts over.
+  // session.end has a short budget, so the band is refilled at the next poll, under the new session.
+  on('session.end', async ($, e, next) => {
+    const result = await next(e)
+    if (e.reason === 'clear' || e.reason === 'resume') {
+      resetBookkeeping()
+      refreshPending = true
     }
-    return next(e)
+    return result
   })
 
-  on('classic.PostCompact', async ($, e, next) => {
-    await update($, compactionsAtom, n => n + 1)
-    return next(e)
+  on('session.compact', async ($, e, next) => {
+    const result = await next(e)
+    if (result.skip === undefined && e.trigger !== 'precompute' && e.agentId === undefined) {
+      await update($, compactionsAtom, n => n + 1)
+    }
+    return result
   })
 
   on('turn.start', async ($, e, next) => {
@@ -208,6 +215,10 @@ async function refreshCompactAt($: EngineInterface): Promise<void> {
 }
 
 async function poll($: EngineInterface): Promise<void> {
+  if (refreshPending) {
+    refreshPending = false
+    await refreshAll($)
+  }
   await refreshAgents($)
   const now = await $.clock.now()
   if (now - gitCheckedAt >= GIT_STALE_MS) await refreshGit($, now)

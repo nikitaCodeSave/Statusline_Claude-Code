@@ -167,17 +167,44 @@ describe('compaction', () => {
     expect(await band.find({ text: /26% · compact in 8k/ })).toBeDefined()
   })
 
-  test('each compaction is counted in the band', async ($, on) => {
+  test('each compaction of the main conversation is counted in the band', async ($, on) => {
     mock.clock(on, { now: NOW })
     host(on)
+    on('session.compact', () => ({ messages: [] }))
     await start($)
     let band = await $.ui.mount({ ...BAND, surface: 'terminal' })
     expect(await band.find({ text: /compacted/ })).toBeUndefined()
     await band.unmount()
-    await $.classic.PostCompact({ trigger: 'auto', compact_summary: 'summary' })
-    await $.classic.PostCompact({ trigger: 'manual', compact_summary: 'summary' })
+    await $.session.compact({ trigger: 'auto', messages: [] })
+    await $.session.compact({ trigger: 'manual', messages: [] })
     band = await $.ui.mount({ ...BAND, surface: 'terminal' })
     expect(await band.find({ text: /compacted ×2/ })).toBeDefined()
+  })
+
+  test('a vetoed compaction, a precompute and a subagent compaction are not counted', async ($, on) => {
+    mock.clock(on, { now: NOW })
+    host(on)
+    on('session.compact', ($, e) => (e.trigger === 'manual' ? { skip: 'vetoed' } : { messages: [] }))
+    await start($)
+    await $.session.compact({ trigger: 'manual', messages: [] })
+    await $.session.compact({ trigger: 'precompute', messages: [] })
+    await $.session.compact({ trigger: 'auto', agentId: 'a1', messages: [] })
+    const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    expect(await band.find({ text: /compacted/ })).toBeUndefined()
+  })
+})
+
+describe('a cleared session', () => {
+  test('after /clear the band is refilled at the next poll', async ($, on) => {
+    const clock = mock.clock(on, { now: NOW })
+    const { usage } = host(on)
+    on('session.end', ($, e) => ({ sessionId: e.sessionId }))
+    await start($)
+    await $.session.end({ reason: 'clear', sessionId: 's1', resume: { id: 's1' } })
+    usage.value = { ...usage.value, context: { window: 200_000, tokens: 9_000, percent: 4 } }
+    await clock.advance(5_000)
+    const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    expect(await band.find({ text: /4%/ })).toBeDefined()
   })
 })
 
