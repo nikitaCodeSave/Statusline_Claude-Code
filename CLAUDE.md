@@ -68,12 +68,12 @@ Gotchas:
 
 ## Project knowledge
 
-Each file is created when first needed, never empty. Files describe the present; history is git and its commit bodies, so no archive folders. Nothing here is removed or closed without the user's confirmation: `/harness:wrap` proposes it, acts only after they confirm, and commits the work first.
+Each file is created when first needed, never empty. Files describe the present; history is git and its commit bodies, so no archive folders. `.scratch/`, `docs/agents/` and `docs/research/` are gitignored: they stay on this machine and keep no history. Nothing here is removed or closed without the user's confirmation: `/harness:wrap` proposes it, acts only after they confirm, and commits the work first.
 
 | Where | Holds | When it goes |
 |---|---|---|
 | `GLOSSARY.md` | domain terms, added the first time one is used or settled; a name replaced by a better one stays under `_Avoid_` | a term only dropped work used |
-| `docs/adr/NNNN-<slug>.md` | decisions that are hard to reverse or that later work must follow, including ones the user mentions "for later", written in the session where they were made, each with a status: `accepted`, `deprecated` or `superseded by NNNN`; a spec or research note it rests on is cited by path | never: a changed decision is a new ADR, and setting the old one's status is the only edit an accepted ADR takes |
+| `docs/adr/NNNN-<slug>.md` | decisions that are hard to reverse or that later work must follow, including ones the user mentions "for later", written in the session where they were made, each with a status: `accepted`, `deprecated` or `superseded by NNNN`; what it rests on from a spec or research note is written into the ADR itself, since those files keep no history | never: a changed decision is a new ADR, and setting the old one's status is the only edit an accepted ADR takes |
 | `.scratch/<feature>/` | open work only: its spec and tickets | finished and reviewed: once every line of the spec lives in a test, an ADR, the glossary or the commit message, the folder goes. Dropped: only when the user says so; what later work must follow goes to an ADR first, its tickets close `wontfix` with the reason, and code and tests built only for it are removed |
 | `docs/research/<slug>.md` | research for a decision still open | once its decision is recorded |
 | `.out-of-scope/<concept>.md` | a request the user rejected that later work must not re-propose, and why | when the user reverses the rejection |

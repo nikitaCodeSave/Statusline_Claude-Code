@@ -1,2 +1,7 @@
 # Written by Claude Code each time it loads the mod from this folder
 .claude-plugin/types/
+
+# Agent working files: they stay on this machine and out of installed copies
+.scratch/
+docs/agents/
+docs/research/
