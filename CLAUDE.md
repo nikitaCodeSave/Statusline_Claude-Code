@@ -23,6 +23,8 @@ The maintainer loads this working copy in every session through `CLAUDE_CODE_PLU
 
 Bring `main` up to date with `git pull --ff-only` before the first edit. Work on `main` by default; a skill or task that needs its own branch or worktree may make one. Commit finished work on the current branch and push it without asking.
 
+Файлы проекта (`CLAUDE.md`, `docs/adr/`, `GLOSSARY.md`, `.claude/skills/`) и сообщения коммитов пишутся на русском; идентификаторы, команды, пути и имена из API остаются как есть (ADR 0006).
+
 loopline follows the newest Claude Code release: use the API and the props as the current declarations spell them (`weight`, not the deprecated `bold`), and when a change needs a newer release, raise the minimum in `README.md`, the one place it is stated. Older releases go unsupported.
 
 The API's authority is the declaration file Claude Code writes into `.claude-plugin/types/` (gitignored) when it loads the mod with `claude --plugin-dir .`. The API is early access and moves between releases, so grep that file for the event or method at hand.
