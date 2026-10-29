@@ -4,6 +4,7 @@ import type { SessionContextUsage, SessionCost, SessionRateLimit } from 'claude-
 
 import type {
   LooplineAgents,
+  LooplineCacheTtl,
   LooplineIdentity,
   LooplineLimit,
   LooplineTurn,
@@ -25,6 +26,7 @@ export type BandView = {
   turn: LooplineTurn | null
   ctxDelta: number | null
   cacheAt: number | null
+  cacheTtl: LooplineCacheTtl | null
   compactions: number
   compactAt: number | null
   agents: LooplineAgents
@@ -33,7 +35,7 @@ export type BandView = {
   width: number
 }
 
-const EDIT_TOOLS = new Set(['Edit', 'Write', 'NotebookEdit', 'MultiEdit'])
+const EDIT_TOOLS = new Set(['Edit', 'Write', 'NotebookEdit'])
 const ACTIVE_AGENT = new Set(['pending', 'running', 'waiting'])
 const WINDOW_MS: Readonly<Record<string, number>> = { five_hour: 5 * 3_600_000, seven_day: 7 * 86_400_000 }
 const HOUR = 3_600_000
@@ -140,9 +142,29 @@ export function exhaustIn(limit: LooplineLimit, now: number): number | null {
   return now + left < resetAt - 60_000 ? left : null
 }
 
-/** The prompt cache lives an hour on a subscription (which reports plan limits) and five minutes on the API. */
-export function cacheTtlMs(limits: readonly LooplineLimit[]): number {
-  return limits.some(l => l.kind === 'five_hour' || l.kind === 'seven_day') ? HOUR : 5 * 60_000
+/**
+ * The main conversation's cache TTL as Claude Code picks it: a pinned one, else an hour on a subscription
+ * (which reports plan limits) within its plan, and five minutes on the API or past a plan limit, where
+ * usage credits pay.
+ */
+export function cacheTtlMs(pinned: LooplineCacheTtl | null, limits: readonly LooplineLimit[]): number {
+  if (pinned !== null) return pinned === '1h' ? HOUR : 5 * 60_000
+  const plan = limits.filter(l => l.kind === 'five_hour' || l.kind === 'seven_day')
+  return plan.length > 0 && plan.every(l => l.percentUsed < 100) ? HOUR : 5 * 60_000
+}
+
+/** The TTL the environment or the settings pin for the main conversation, first match in Claude Code's order. */
+export function pinnedCacheTtl(
+  env: { force5m?: string; ttl?: string; enable1h?: string },
+  setting: unknown,
+): LooplineCacheTtl | null {
+  if (isTruthy(env.force5m)) return '5m'
+  for (const value of [env.ttl, setting]) if (value === '5m' || value === '1h') return value
+  return isTruthy(env.enable1h) ? '1h' : null
+}
+
+function isTruthy(value: string | undefined): boolean {
+  return value !== undefined && ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase())
 }
 
 export function isActiveAgent(status: string): boolean {
@@ -312,7 +334,7 @@ function limitSegs(limit: LooplineLimit, now: number): Seg[] {
 
 function cacheSegs(v: BandView): Seg[] {
   if (v.cacheAt === null || v.turn !== null || v.usage === null) return []
-  const ttl = cacheTtlMs(v.usage.limits)
+  const ttl = cacheTtlMs(v.cacheTtl, v.usage.limits)
   const left = v.cacheAt + ttl - v.now
   if (left <= 0) return [{ text: 'cache cold', color: 'warning' }]
   const text = `cache ${Math.ceil(left / 60_000)}m`

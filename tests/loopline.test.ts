@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import type { AgentInfo, On, ProcessRunResult, SessionMeasureInput, SessionUsage } from 'claude-code'
+import type { AgentInfo, On, ProcessRunResult, SessionMeasureInput, SessionUsage, TurnUsage } from 'claude-code'
 
 const NOW = Date.parse('2026-10-06T12:00:00Z')
 const SURFACES = ['terminal', 'desktop'] as const
@@ -18,9 +18,9 @@ function ran(stdout: string, exitCode = 0): ProcessRunResult {
 /** Answers every host call the mod makes; `npm test` fails as a tool call. */
 function host(on: On, agents: AgentInfo[] = []) {
   // Session s1 runs in /home/u/shop; its transcript holds `compactions` boundary rows.
-  const transcript = { root: '/home/u/shop', path: '/home/u/.claude/projects/-home-u-shop/s1.jsonl', size: 4_096, compactions: 0 }
+  const transcript = { id: 's1', root: '/home/u/shop', path: '/home/u/.claude/projects/-home-u-shop/s1.jsonl', size: 4_096, compactions: 0 }
   mock.env(on, { HOME: '/home/u' })
-  on('session.id', () => ({ value: 's1' }))
+  on('session.id', () => ({ value: transcript.id }))
   on('session.root', () => ({ value: transcript.root }))
   on('session.turns', () => ({ value: 3 }))
   on('fs.exists', ($, e) => ({ value: e.path === transcript.path }))
@@ -62,6 +62,13 @@ function host(on: On, agents: AgentInfo[] = []) {
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
   on('settings.read', () => ({ value: { effortLevel: 'xhigh' } }))
   on('agent.list', () => ({ value: agents }))
+  // Beneath the mod, the model: each request is answered at once, reporting `answer.usage`.
+  const answer: { usage: TurnUsage | null } = {
+    usage: { model: 'claude-opus-5-5', input_tokens: 900, output_tokens: 300, cache_read_input_tokens: 48_000, cache_creation_input_tokens: 2_000 },
+  }
+  on('turn.step', async function* (_$, e) {
+    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn' as const, usage: answer.usage }
+  })
   on('tool.call', ($, e) => (e.tool === 'Bash' && e.command === 'npm test'
     ? { isError: true, result: 'exit 1', text: 'Exit code 1' }
     : { result: 'ok' as never }))
@@ -70,13 +77,20 @@ function host(on: On, agents: AgentInfo[] = []) {
     const { Text } = $.ui.resolve(e)
     return Text({ children: [e.props.word + e.props.suffix] })
   })
-  return { usage, seen, compactAt, transcript }
+  return { usage, seen, compactAt, transcript, answer }
 }
 
 const SPINNER = { plugin: 'loopline', component: 'Spinner', props: { word: 'Thinking', message: null, suffix: '…', mode: 'tool-use' } } as const
 
 async function start($: Engine) {
   await $.session.start({ cwd: '/home/u/shop', surface: 'terminal', isInteractive: true })
+}
+
+/** One model request of the main loop's turn t1, drained. */
+async function request($: Engine, model = 'claude-opus-5-5', effort: 'high' | 'xhigh' = 'xhigh') {
+  const step = $.turn.step({ turnId: 't1', index: 0, model, effort, messageCount: 1 })
+  for await (const _chunk of step) { /* drain */ }
+  await step.result
 }
 
 async function edit($: Engine, file: string) {
@@ -109,6 +123,7 @@ describe('a turn in the agent loop', () => {
     }
 
     usage.value = { ...usage.value, context: { window: 200_000, tokens: 62_000, percent: 31 } }
+    await request($)
     await $.turn.complete({ answer: 'done', durationMs: 80_000, isAborted: false, turnId: 't1', reason: 'answer' })
 
     const idle = await $.ui.mount({ ...SPINNER, surface: 'terminal', requestId: 'main' })
@@ -142,16 +157,22 @@ describe('a turn in the agent loop', () => {
   test('the model and effort a request actually used replace the configured ones', async ($, on) => {
     mock.clock(on, { now: NOW })
     host(on)
-    on('turn.step', async function* (_$, e) {
-      return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn' as const, usage: null }
-    })
     await start($)
-    const step = $.turn.step({ turnId: 't1', index: 0, model: 'claude-sonnet-5-5', effort: 'high', messageCount: 1 })
-    for await (const _chunk of step) { /* drain */ }
-    await step.result
+    await request($, 'claude-sonnet-5-5', 'high')
     const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
     expect(await band.find({ text: /Sonnet5\.5 high/ })).toBeDefined()
     expect(await band.find({ text: /cache 60m/ })).toBeDefined()
+  })
+
+  test('a response that reports no cache tokens stops the cache clock', async ($, on) => {
+    mock.clock(on, { now: NOW })
+    const { answer } = host(on)
+    await start($)
+    await request($)
+    answer.usage = { model: 'claude-opus-5-5', input_tokens: 50_000, output_tokens: 300, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
+    await request($)
+    const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    expect(await band.find({ text: /cache/ })).toBeUndefined()
   })
 })
 
@@ -219,17 +240,17 @@ describe('compaction', () => {
   })
 })
 
-describe('a cleared session', () => {
-  test('after /clear the band is refilled at the next poll', async ($, on) => {
+describe('another session in place', () => {
+  test('after /clear, /resume or /branch the band is refilled at the next poll', async ($, on) => {
     const clock = mock.clock(on, { now: NOW })
-    const { usage } = host(on)
-    on('session.end', ($, e) => ({ sessionId: e.sessionId }))
+    const { usage, transcript } = host(on)
     await start($)
-    await $.session.end({ reason: 'clear', sessionId: 's1', resume: { id: 's1' } })
+    transcript.id = 's2'
     usage.value = { ...usage.value, context: { window: 200_000, tokens: 9_000, percent: 4 } }
     await clock.advance(5_000)
     const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
     expect(await band.find({ text: /4%/ })).toBeDefined()
+    expect(await band.find({ text: /Opus5\.5 xhigh/ })).toBeDefined()
   })
 })
 

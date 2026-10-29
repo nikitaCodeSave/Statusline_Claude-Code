@@ -11,6 +11,7 @@ import {
   isActiveAgent,
   limitLabel,
   parseShortstat,
+  pinnedCacheTtl,
   projectKey,
   spinnerSuffix,
   toUsage,
@@ -39,10 +40,12 @@ const agentsAtom = atom({ plugin: 'loopline', key: 'agents' } as const, { active
 const warningAtom = atom({ plugin: 'loopline', key: 'warning' } as const, null)
 const ctxDeltaAtom = atom({ plugin: 'loopline', key: 'ctxDelta' } as const, null)
 const cacheAtom = atom({ plugin: 'loopline', key: 'cacheAt' } as const, null)
+const cacheTtlAtom = atom({ plugin: 'loopline', key: 'cacheTtl' } as const, null)
 const compactionsAtom = atom({ plugin: 'loopline', key: 'compactions' } as const, 0)
 const compactAtAtom = atom({ plugin: 'loopline', key: 'compactAt' } as const, null)
 
-// Bookkeeping no drawing reads: a reload starts it over, which costs at most a repeated alert.
+// Bookkeeping a reload starts over, which costs at most a repeated alert. Drawing reads only
+// `subagents`, which the next poll or request fills again.
 let turnFiles = new Set<string>()
 const failStreaks = new Map<string, number>()
 const warnedKeys = new Set<string>()
@@ -50,8 +53,9 @@ const limitSeen = new Map<string, number>()
 let ctxSeen: number | undefined
 let gitCheckedAt = 0
 let modelSeen = ''
-let refreshPending = false
+let sessionSeen = ''
 let transcript: Transcript | null = null
+const subagents = new Set<string>()
 
 type Settings = { stuckThreshold: number }
 type Transcript = { id: string; root: string; path: string | null; size: number; isScanned: boolean }
@@ -62,23 +66,10 @@ export const register: Register = (on, options) => {
   }
 
   on('session.start', async ($, e, next) => {
+    sessionSeen = await $.session.id()
     await refreshAll($)
     $.clock.every(POLL_MS, () => void poll($))
     return next(e)
-  })
-
-  // A native session event, not classic.*: where managed settings exist, the built-in security
-  // plugin sits in the prepend tier and sends classic events past the user tier, so a classic
-  // hook here never runs.
-  // /clear and /resume end the session without a new session.start, and $.state starts over.
-  // session.end has a short budget, so the band is refilled at the next poll, under the new session.
-  on('session.end', async ($, e, next) => {
-    const result = await next(e)
-    if (e.reason === 'clear' || e.reason === 'resume') {
-      resetBookkeeping()
-      refreshPending = true
-    }
-    return result
   })
 
   on('turn.start', async ($, e, next) => {
@@ -100,18 +91,24 @@ export const register: Register = (on, options) => {
   })
 
   // Each model request carries the model and the effort actually used, after any downgrade;
-  // its response restarts the prompt cache's clock.
+  // a response that reports cache tokens restarts the prompt cache's clock, and one without
+  // (caching off, or cut by a gateway) stops it.
   on('turn.step', async function* ($, e, next) {
+    if (e.agentId !== undefined) {
+      subagents.add(e.agentId)
+      return yield* next(e)
+    }
     const effort = e.effort === undefined ? null : String(e.effort)
     const seen = `${e.model}|${effort}`
-    if (e.agentId === undefined && seen !== modelSeen) {
+    if (seen !== modelSeen) {
       modelSeen = seen
       await update($, identityAtom, id => ({ ...id, model: e.model, effort }))
     }
     const result = yield* next(e)
-    if (e.agentId === undefined) {
+    if (result.usage !== null) {
+      const isCached = result.usage.cache_read_input_tokens + result.usage.cache_creation_input_tokens > 0
       const now = await $.clock.now()
-      await update($, cacheAtom, () => now)
+      await update($, cacheAtom, () => (isCached ? now : null))
     }
     return result
   })
@@ -144,6 +141,7 @@ export const register: Register = (on, options) => {
       turn: await read($, turnAtom),
       ctxDelta: await read($, ctxDeltaAtom),
       cacheAt: await read($, cacheAtom),
+      cacheTtl: await read($, cacheTtlAtom),
       compactions: await read($, compactionsAtom),
       compactAt: await read($, compactAtAtom),
       agents: await read($, agentsAtom),
@@ -168,9 +166,7 @@ export const register: Register = (on, options) => {
   // The spinner already shows the turn's time and tokens; it gains what the turn did.
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
     const suffix = spinnerSuffix(await read($, turnAtom))
-    if (suffix === null) return next(e)
-    const agents = await $.agent.list()
-    if (agents.some(a => a.id === e.requestId)) return next(e)
+    if (suffix === null || subagents.has(e.requestId)) return next(e)
     return next({ ...e, props: { ...e.props, suffix: suffix + e.props.suffix } })
   })
 }
@@ -191,6 +187,7 @@ function resetBookkeeping(): void {
   ctxSeen = undefined
   modelSeen = ''
   transcript = null
+  subagents.clear()
 }
 
 async function refreshAll($: EngineInterface): Promise<void> {
@@ -200,6 +197,13 @@ async function refreshAll($: EngineInterface): Promise<void> {
   const configured = await $.settings.read()
   const effort = configuredEffort(configured, model)
   await update($, identityAtom, id => ({ ...id, model: id.model ?? model, effort: id.effort ?? effort }))
+  const env = {
+    force5m: await $.env.get('FORCE_PROMPT_CACHING_5M'),
+    ttl: await $.env.get('CLAUDE_CODE_PROMPT_CACHE_TTL'),
+    enable1h: await $.env.get('ENABLE_PROMPT_CACHING_1H'),
+  }
+  const ttl = pinnedCacheTtl(env, configured.promptCacheTtl)
+  await update($, cacheTtlAtom, () => ttl)
   await refreshCompactAt($)
   await refreshCompactions($)
   await refreshGit($, await $.clock.now())
@@ -272,8 +276,13 @@ async function findTranscript($: EngineInterface, t: Transcript): Promise<string
 }
 
 async function poll($: EngineInterface): Promise<void> {
-  if (refreshPending) {
-    refreshPending = false
+  // /clear, /resume and /branch put another session in place with no session.start, and $.state
+  // starts over. No hook says so: session.end skips /branch, and where managed settings exist the
+  // built-in guard passes classic SessionStart over every installed mod.
+  const id = await $.session.id()
+  if (id !== sessionSeen) {
+    sessionSeen = id
+    resetBookkeeping()
     await refreshAll($)
   }
   await refreshAgents($)
@@ -307,6 +316,7 @@ async function refreshGit($: EngineInterface, now: number): Promise<void> {
 
 async function refreshAgents($: EngineInterface): Promise<void> {
   const list = await $.agent.list()
+  for (const agent of list) subagents.add(agent.id)
   const active = list.filter(a => isActiveAgent(a.status)).length
   const prev = await read($, agentsAtom)
   if (prev.active !== active || prev.total !== list.length) {
@@ -351,7 +361,7 @@ async function recordCall($: EngineInterface, e: ToolCallInput, ran: ToolCallRes
       $.ui.toast(`loopline: ${text}. Is the agent stuck?`, { timeoutMs: 8_000 })
     }
   }
-  if (e.tool === 'Agent' || String(e.tool) === 'Task') await refreshAgents($)
+  if (e.tool === 'Agent') await refreshAgents($)
 }
 
 async function finishTurn($: EngineInterface): Promise<void> {
@@ -363,7 +373,6 @@ async function finishTurn($: EngineInterface): Promise<void> {
   await update($, turnAtom, () => null)
   await update($, usageAtom, () => toUsage(usage.startedAt, usage.context, usage.rateLimits, usage.cost))
   const now = await $.clock.now()
-  await update($, cacheAtom, () => now)
   await refreshCompactAt($)
   await refreshGit($, now)
   await refreshAgents($)

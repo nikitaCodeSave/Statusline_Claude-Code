@@ -3,6 +3,7 @@ import { describe, expect, test } from 'claude-code/testing'
 import {
   bandLines,
   bar,
+  cacheTtlMs,
   callKey,
   compactLeft,
   configuredEffort,
@@ -15,6 +16,7 @@ import {
   fmtReset,
   fmtTokens,
   parseShortstat,
+  pinnedCacheTtl,
   projectKey,
   shortModel,
   spinnerSuffix,
@@ -39,6 +41,7 @@ const VIEW: BandView = {
   turn: null,
   ctxDelta: 12_000,
   cacheAt: NOW - 19 * 60_000,
+  cacheTtl: null,
   compactions: 0,
   compactAt: null,
   agents: { active: 0, total: 0 },
@@ -142,6 +145,24 @@ describe('band', () => {
     expect(text(bandLines({ ...VIEW, usage: api, cacheAt: NOW - 270_000 })[1])).toBe('$1.23  │  cache 1m  │  ⏱ 1h12m')
     const working = bandLines({ ...VIEW, turn: { id: 't', startedAt: NOW, tools: 0, edits: 0, files: 0 } })
     expect(text(working[1])).not.toContain('cache')
+    expect(text(bandLines({ ...VIEW, usage: api, cacheTtl: '1h' })[1])).toBe('$1.23  │  cache 41m  │  ⏱ 1h12m')
+  })
+
+  test('the cache TTL is the pinned one, else an hour within a plan and five minutes past it or off one', () => {
+    const plan = (percentUsed: number) => [{ kind: 'five_hour', percentUsed }, { kind: 'seven_day', percentUsed: 12 }]
+    expect(cacheTtlMs(null, plan(34))).toBe(3_600_000)
+    expect(cacheTtlMs(null, plan(100))).toBe(300_000)
+    expect(cacheTtlMs(null, [])).toBe(300_000)
+    expect(cacheTtlMs('5m', plan(34))).toBe(300_000)
+    expect(cacheTtlMs('1h', [])).toBe(3_600_000)
+  })
+
+  test("a pinned TTL follows Claude Code's order: force 5m, the variable, the setting, then enable 1h", () => {
+    expect(pinnedCacheTtl({ force5m: '1', ttl: '1h' }, '1h')).toBe('5m')
+    expect(pinnedCacheTtl({ ttl: '5m' }, '1h')).toBe('5m')
+    expect(pinnedCacheTtl({ ttl: '2h', enable1h: 'true' }, '5m')).toBe('5m')
+    expect(pinnedCacheTtl({ enable1h: '1' }, undefined)).toBe('1h')
+    expect(pinnedCacheTtl({ force5m: '0' }, 7)).toBeNull()
   })
 
   test('working: the band keeps agents and a stuck call; the turn itself goes to the spinner', () => {

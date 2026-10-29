@@ -53,6 +53,7 @@ const CALM: BandView = {
   turn: null,
   ctxDelta: 9_000,
   cacheAt: NOW - 2 * MIN,
+  cacheTtl: null,
   compactions: 0,
   compactAt: 967_000,
   agents: { active: 0, total: 0 },
