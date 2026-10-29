@@ -191,8 +191,7 @@ function resetBookkeeping(): void {
 }
 
 async function refreshAll($: EngineInterface): Promise<void> {
-  const usage = await $.session.usage()
-  await update($, usageAtom, () => toUsage(usage.startedAt, usage.context, usage.rateLimits, usage.cost))
+  await refreshUsage($)
   const model = await $.session.model()
   const configured = await $.settings.read()
   const effort = configuredEffort(configured, model)
@@ -208,6 +207,16 @@ async function refreshAll($: EngineInterface): Promise<void> {
   await refreshCompactions($)
   await refreshGit($, await $.clock.now())
   await refreshAgents($)
+}
+
+/**
+ * The status line's figures, read afresh (the call is free). session.measure brings them only after a
+ * turn, so this keeps the band right after a /compact between turns and live through a long turn.
+ */
+async function refreshUsage($: EngineInterface): Promise<void> {
+  const usage = await $.session.usage()
+  await update($, usageAtom, () => toUsage(usage.startedAt, usage.context, usage.rateLimits, usage.cost))
+  await alertThresholds($, usage.context.percent, usage.rateLimits)
 }
 
 /** Where auto-compaction runs: from the local /context estimate, which sends no request. */
@@ -242,9 +251,11 @@ async function refreshCompactions($: EngineInterface): Promise<void> {
   const grep = await $.process.run(['grep', '-c', '-F', COMPACT_ROW, '--', t.path], { timeoutMs: 5_000 }).catch(() => null)
   // grep exits 1 when nothing matches, and still prints the 0.
   const count = grep !== null && grep.exitCode <= 1 ? Number.parseInt(grep.stdout, 10) : NaN
-  if (Number.isInteger(count) && count !== (await read($, compactionsAtom))) {
-    await update($, compactionsAtom, () => count)
-  }
+  const prev = await read($, compactionsAtom)
+  if (!Number.isInteger(count) || count === prev) return
+  await update($, compactionsAtom, () => count)
+  // The last turn's growth no longer describes a context a compaction rewrote.
+  if (count > prev) await update($, ctxDeltaAtom, () => null)
 }
 
 /**
@@ -287,6 +298,7 @@ async function poll($: EngineInterface): Promise<void> {
   }
   await refreshAgents($)
   await refreshCompactions($)
+  await refreshUsage($)
   const now = await $.clock.now()
   if (now - gitCheckedAt >= GIT_STALE_MS) await refreshGit($, now)
   // Nothing else redraws on time alone: keep the cache countdown and the session clock current.

@@ -131,7 +131,7 @@ describe('band', () => {
 
   test('a compacted context says so and keeps it when the line is narrow', () => {
     expect(text(bandLines({ ...VIEW, compactions: 2 })[0])).toBe('main +184 −37 (6) · Opus5.5 xhigh  │  ctx ▰▰▱▱▱▱▱▱▱▱ 45k/200k 23% +12k · compacted ×2')
-    expect(text(bandLines({ ...VIEW, compactions: 1, width: 50 })[0])).toBe('main +184 −37 (6) · Opus5.5 xhigh  │  ctx 23% · compacted ×1')
+    expect(text(bandLines({ ...VIEW, compactions: 1, width: 50 })[0])).toBe('main +184 −37 · Opus5.5  │  ctx 23% · compacted ×1')
   })
 
   test('a window running out early replaces its reset with the pace', () => {
@@ -189,8 +189,19 @@ describe('band', () => {
 
   test('narrow: optional runs go first, with their separators', () => {
     const [first, second] = bandLines({ ...VIEW, width: 40 })
-    expect(text(first)).toBe('main +184 −37 (6) · Opus5.5 xhigh  │  ctx 23%')
+    expect(text(first)).toBe('main +184 −37 (6) · Opus5.5  │  ctx 23%')
     expect(text(second)).toBe('$1.23  │  5h 34% · 7d 12%  │  cache 41m')
     expect(fit([{ text: 'abc' }, { text: 'def', optional: true }], 3)).toEqual([{ text: 'abc' }])
+  })
+
+  test('narrower still: the effort and the diff give way, the percentage stays', () => {
+    expect(text(bandLines({ ...VIEW, width: 36 })[0])).toBe('main +184 −37 · Opus5.5  │  ctx 23%')
+    expect(text(bandLines({ ...VIEW, width: 34 })[0])).toBe('main · Opus5.5  │  ctx 23%')
+    const diff = [{ text: 'a' }, { text: ' +1', optional: true, group: 'g' }, { text: ' −1', optional: true, group: 'g' }, { text: ' z' }]
+    expect(fit(diff, 4)).toEqual([{ text: 'a' }, { text: ' z' }])
+  })
+
+  test('a group dropped from the end takes its separator along', () => {
+    expect(text(bandLines({ ...VIEW, width: 50 })[1])).toBe('$1.23  │  5h 34% @2h10m · 7d 12%  │  cache 41m')
   })
 })

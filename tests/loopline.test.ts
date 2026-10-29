@@ -229,6 +229,22 @@ describe('compaction', () => {
     expect(await band.find({ text: /compacted ×3/ })).toBeDefined()
   })
 
+  test('after a /compact between turns the band shows the context unknown, not the old fill', async ($, on) => {
+    const clock = mock.clock(on, { now: NOW })
+    const { usage, transcript } = host(on)
+    await start($)
+    await $.turn.start({ text: 'grow', turnId: 't1' })
+    usage.value = { ...usage.value, context: { window: 200_000, tokens: 62_000, percent: 31 } }
+    await $.turn.complete({ answer: 'done', durationMs: 1_000, isAborted: false, turnId: 't1', reason: 'answer' })
+    usage.value = { ...usage.value, context: { window: 200_000 } }
+    transcript.compactions = 1
+    transcript.size += 1_000
+    await clock.advance(5_000)
+    const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    expect(await band.find({ text: /—\/200k —% · compacted ×1/ })).toBeDefined()
+    expect(await band.find({ text: /\+12k/ })).toBeUndefined()
+  })
+
   test('the transcript of a session resumed from another directory is found by its id', async ($, on) => {
     mock.clock(on, { now: NOW })
     const { transcript } = host(on)

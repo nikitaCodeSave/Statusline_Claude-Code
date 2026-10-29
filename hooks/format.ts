@@ -11,13 +11,14 @@ import type {
   LooplineUsage,
 } from '../types'
 
-/** One styled run of text; `optional` runs are dropped first when a line is too wide. */
+/** One styled run of text; `optional` runs are dropped first when a line is too wide, a `group`'s together. */
 export type Seg = {
   text: string
   color?: string
   dim?: boolean
   bold?: boolean
   optional?: boolean
+  group?: string
 }
 
 export type BandView = {
@@ -243,11 +244,24 @@ function width(segs: readonly Seg[]): number {
 
 /** Drops optional runs from the end until the line fits; the surface truncates whatever is still too wide. */
 export function fit(segs: readonly Seg[], columns: number): Seg[] {
-  const out = [...segs]
+  let out = [...segs]
   for (let i = out.length - 1; i >= 0 && width(out) > columns; i--) {
-    if (out[i]?.optional === true) out.splice(i, 1)
+    const seg = out[i]
+    if (seg?.optional !== true) continue
+    if (seg.group === undefined) {
+      out.splice(i, 1)
+    } else {
+      i = out.findIndex(s => s.group === seg.group)
+      out = out.filter(s => s.group !== seg.group)
+    }
   }
+  // A group dropped from the end leaves the separator before it.
+  while (out.length > 0 && isSeparator(out[out.length - 1])) out.pop()
   return out
+}
+
+function isSeparator(seg: Seg | undefined): boolean {
+  return seg?.text === SEP.text || seg?.text === DOT.text
 }
 
 /** Joins the non-empty groups; a wholly optional group takes its separator with it when dropped. */
@@ -266,16 +280,17 @@ function identityLine(v: BandView): Seg[] {
   const who: Seg[][] = []
   if (identity.branch !== null) {
     const diff: Seg[] = []
+    // On a narrow line the diff and the effort give way after the context's details, before its percentage.
     if (identity.dirty > 0) {
-      if (identity.added > 0) diff.push({ text: ` +${identity.added}`, color: 'success' })
-      if (identity.removed > 0) diff.push({ text: ` −${identity.removed}`, color: 'error' })
-      diff.push({ text: ` (${identity.dirty})`, dim: true })
+      if (identity.added > 0) diff.push({ text: ` +${identity.added}`, color: 'success', optional: true, group: 'diff' })
+      if (identity.removed > 0) diff.push({ text: ` −${identity.removed}`, color: 'error', optional: true, group: 'diff' })
+      diff.push({ text: ` (${identity.dirty})`, dim: true, optional: true })
     }
     who.push([{ text: identity.branch, color: 'merged' }, ...diff])
   }
   who.push([
     { text: shortModel(identity.model), color: 'suggestion', bold: true },
-    ...(identity.effort !== null ? [{ text: ` ${identity.effort}`, dim: true }] : []),
+    ...(identity.effort !== null ? [{ text: ` ${identity.effort}`, dim: true, optional: true }] : []),
   ])
 
   const ctx: Seg[] = [{ text: 'ctx ', dim: true }]
