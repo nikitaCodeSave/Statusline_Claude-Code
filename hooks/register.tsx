@@ -156,7 +156,7 @@ export const register: Register = (on, options) => {
       <Box flexDirection="column">
         {theirs}
         {lines.map(line => (
-          <Text wrap="truncate-end">
+          <Text wrap="truncate-end" tabular>
             {line.map(seg => <Text {...segProps(seg)}>{seg.text}</Text>)}
           </Text>
         ))}
@@ -172,11 +172,11 @@ export const register: Register = (on, options) => {
   })
 }
 
-function segProps(seg: Seg): { color?: string; dimColor?: true; bold?: true } {
+function segProps(seg: Seg): { color?: string; dimColor?: true; weight?: 'semibold' } {
   return {
     ...(seg.color !== undefined ? { color: seg.color } : {}),
     ...(seg.dim === true ? { dimColor: true as const } : {}),
-    ...(seg.bold === true ? { bold: true as const } : {}),
+    ...(seg.bold === true ? { weight: 'semibold' as const } : {}),
   }
 }
 
@@ -194,7 +194,11 @@ function resetBookkeeping(): void {
 async function refreshAll($: EngineInterface): Promise<void> {
   await refreshUsage($)
   const model = await $.session.model()
-  const configured = await $.settings.read()
+  // Each key alone: the merged settings also carry `env`, which can hold secrets.
+  const configured = {
+    effortLevel: await $.settings.read({ key: 'effortLevel' }),
+    modelSettings: await $.settings.read({ key: 'modelSettings' }),
+  }
   const effort = configuredEffort(configured, model)
   await update($, identityAtom, id => ({ ...id, model: id.model ?? model, effort: id.effort ?? effort }))
   const env = {
@@ -202,7 +206,7 @@ async function refreshAll($: EngineInterface): Promise<void> {
     ttl: await $.env.get('CLAUDE_CODE_PROMPT_CACHE_TTL'),
     enable1h: await $.env.get('ENABLE_PROMPT_CACHING_1H'),
   }
-  const ttl = pinnedCacheTtl(env, configured.promptCacheTtl)
+  const ttl = pinnedCacheTtl(env, await $.settings.read({ key: 'promptCacheTtl' }))
   await update($, cacheTtlAtom, () => ttl)
   await refreshCompactAt($)
   await refreshCompactions($)

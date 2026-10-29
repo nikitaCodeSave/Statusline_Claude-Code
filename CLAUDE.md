@@ -1,6 +1,6 @@
 # loopline: agent guide
 
-loopline is a Claude Code mod: an in-process plugin of function hooks (Claude Code 2.1.287+). The repository root is both the plugin and its marketplace, `nikitacodesave`. `README.md` (Russian) describes it to users; this file covers installing it for a user and changing it.
+loopline is a Claude Code mod: an in-process plugin of function hooks (Claude Code 2.1.312+). The repository root is both the plugin and its marketplace, `nikitacodesave`. `README.md` (Russian) describes it to users; this file covers installing it for a user and changing it.
 
 ## Scope: session state, displayed
 
@@ -10,7 +10,7 @@ A new item fits when it is session state read from Claude Code or git. Project c
 
 ## Install for a user
 
-1. `claude --version` reports 2.1.287 or later.
+1. `claude --version` reports 2.1.312 or later.
 2. Run `claude plugin marketplace add nikitaCodeSave/Statusline_Claude-Code`, then `claude plugin install loopline@nikitacodesave`.
 3. Migrate from the old command statusline this repository used to ship. If `statusLine` or `subagentStatusLine` in `~/.claude/settings.json` runs `statusline.js` or `statusline-subagent.js`, remove those two keys and keep every other key (2-space JSON). Then delete `~/.claude/statusline.js` and `~/.claude/statusline-subagent.js`. A `statusLine` that runs anything else is the user's own: ask before touching it.
 
@@ -25,6 +25,8 @@ Done when `claude plugin list` shows `loopline@nikitacodesave` enabled and no se
 The maintainer loads this working copy in every session through `CLAUDE_CODE_PLUGIN_DIRS` in the `env` of `~/.claude/settings.json` (`claude plugin list` shows `loopline@inline`). An edit therefore reaches the live session when the turn that made it ends.
 
 Work on `main` itself, brought up to date with `git pull --ff-only` before the first edit; make no other branch. When the user asks for a commit, commit on `main` and push it.
+
+loopline follows the newest Claude Code release: use the API and the props as the current declarations spell them (`weight`, not the deprecated `bold`), and when a change needs a newer release, raise the minimum in `README.md` and in the install steps above. Older releases go unsupported.
 
 The API's authority is the declaration file Claude Code writes into `.claude-plugin/types/` (gitignored) when it loads the mod with `claude --plugin-dir .`. The API is early access and moves between releases, so grep that file for the event or method at hand.
 

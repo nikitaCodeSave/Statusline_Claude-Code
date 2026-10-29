@@ -1,6 +1,6 @@
 {
   "name": "loopline",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Status band above the prompt with Claude Code session state: model and effort, uncommitted diff, context with growth and compactions, cost, rate-limit pace, prompt-cache clock, live turn counters, background agents and a stuck-call warning",
   "author": {
     "name": "nikitaCodeSave"
@@ -15,7 +15,6 @@
     "rate-limits",
     "prompt-cache"
   ],
-  "types": "./types/index.d.ts",
   "userConfig": {
     "stuckThreshold": {
       "type": "number",
