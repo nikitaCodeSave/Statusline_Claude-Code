@@ -54,6 +54,7 @@ let ctxSeen: number | undefined
 let gitCheckedAt = 0
 let modelSeen = ''
 let sessionSeen = ''
+let isPolling = false
 let transcript: Transcript | null = null
 const subagents = new Set<string>()
 
@@ -292,22 +293,29 @@ async function findTranscript($: EngineInterface, t: Transcript): Promise<string
 }
 
 async function poll($: EngineInterface): Promise<void> {
-  // /clear, /resume and /branch put another session in place with no session.start, and $.state
-  // starts over. No hook says so: session.end skips /branch, and where managed settings exist the
-  // built-in guard passes classic SessionStart over every installed mod.
-  const id = await $.session.id()
-  if (id !== sessionSeen) {
-    sessionSeen = id
-    resetBookkeeping()
-    await refreshAll($)
+  // A slow git or transcript read can outlast the interval: one pass at a time.
+  if (isPolling) return
+  isPolling = true
+  try {
+    // /clear, /resume and /branch put another session in place with no session.start, and $.state
+    // starts over. The new session's id says so here, and the band fills under it; session.end
+    // fires for all three, but its budget is short and the new session is not in place yet.
+    const id = await $.session.id()
+    if (id !== sessionSeen) {
+      sessionSeen = id
+      resetBookkeeping()
+      await refreshAll($)
+    }
+    await refreshAgents($)
+    await refreshCompactions($)
+    await refreshUsage($)
+    const now = await $.clock.now()
+    if (now - gitCheckedAt >= GIT_STALE_MS) await refreshGit($, now)
+    // Nothing else redraws on time alone: keep the cache countdown and the session clock current.
+    $.ui.invalidate('ui.render')
+  } finally {
+    isPolling = false
   }
-  await refreshAgents($)
-  await refreshCompactions($)
-  await refreshUsage($)
-  const now = await $.clock.now()
-  if (now - gitCheckedAt >= GIT_STALE_MS) await refreshGit($, now)
-  // Nothing else redraws on time alone: keep the cache countdown and the session clock current.
-  $.ui.invalidate('ui.render')
 }
 
 async function refreshGit($: EngineInterface, now: number): Promise<void> {
@@ -375,7 +383,7 @@ async function recordCall($: EngineInterface, e: ToolCallInput, ran: ToolCallRes
       warnedKeys.add(key)
       const text = `${label} failed ${streak}× in a row`
       await update($, warningAtom, () => text)
-      $.ui.toast(`loopline: ${text}. Is the agent stuck?`, { timeoutMs: 8_000 })
+      $.ui.toast(`${text}. Is the agent stuck?`, { timeoutMs: 8_000 })
     }
   }
   if (e.tool === 'Agent') await refreshAgents($)
@@ -403,7 +411,7 @@ async function alertThresholds(
   if (ctxPercent !== undefined) {
     const mark = crossed(ctxSeen ?? 0, ctxPercent, CONTEXT_MARKS)
     ctxSeen = ctxPercent
-    if (mark !== null) $.ui.toast(`loopline: context is ${Math.round(ctxPercent)}% full. Consider /compact.`, { timeoutMs: 8_000 })
+    if (mark !== null) $.ui.toast(`Context is ${Math.round(ctxPercent)}% full. Consider /compact.`, { timeoutMs: 8_000 })
   }
   for (const limit of limits) {
     const mark = crossed(limitSeen.get(limit.kind) ?? 0, limit.percentUsed, LIMIT_MARKS)
@@ -411,6 +419,6 @@ async function alertThresholds(
     if (mark === null) continue
     const reset = fmtReset(limit.resetsAt, await $.clock.now())
     const text = `${limitLabel(limit.kind)} limit at ${Math.round(limit.percentUsed)}%${reset === null ? '' : `, resets in ${reset}`}`
-    $.ui.toast(`loopline: ${text}`, { timeoutMs: 8_000 })
+    $.ui.toast(text, { timeoutMs: 8_000 })
   }
 }

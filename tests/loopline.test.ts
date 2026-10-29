@@ -115,7 +115,7 @@ describe('a turn in the agent loop', () => {
     for (let i = 0; i < 3; i++) await $.tool.call({ tool: 'Bash', command: 'npm test' })
     await clock.advance(75_000)
 
-    expect(seen.toasts).toContain('loopline: npm test failed 3× in a row. Is the agent stuck?')
+    expect(seen.toasts).toContain('npm test failed 3× in a row. Is the agent stuck?')
     for (const surface of SURFACES) {
       const spinner = await $.ui.mount({ ...SPINNER, surface, requestId: 'main' })
       expect(await spinner.find({ text: 'Thinking · 5 tools · 2 edits/1 file…' })).toBeDefined()
@@ -301,7 +301,7 @@ describe('measurements', () => {
     await $.session.measure(measure)
     await $.session.measure({ ...measure, changed: ['cost'] })
 
-    expect(seen.toasts.filter(t => t.includes('context is 86% full'))).toHaveLength(1)
+    expect(seen.toasts.filter(t => t.includes('Context is 86% full'))).toHaveLength(1)
     expect(seen.toasts.filter(t => t.includes('5h limit at 96%, resets in 2h0m'))).toHaveLength(1)
 
     const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
