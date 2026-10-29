@@ -32,12 +32,21 @@ Done when every check holds:
 
 - `claude plugin validate .` passes. Its one expected warning is about this file sitting at the plugin root.
 - `tsc -p .` is clean (the mod must have loaded once with `--plugin-dir .`).
-- `claude plugin test` passes, with a test for the changed behaviour: band text through `bandLines` in `tests/format.test.ts`, engine behaviour in `tests/loopline.test.ts`.
+- A test records the changed behaviour: band text through `bandLines` in `tests/format.test.ts`, engine behaviour in `tests/loopline.test.ts`.
+- The changed behaviour shows in a live session's band (the live session check below).
 - When band or spinner output changed: `node --experimental-strip-types scripts/render-screens.ts` re-rendered `img/`, you looked at the pictures, and the README's element table and states match them.
 - `version` in `.claude-plugin/plugin.json` is bumped when the change ships. Users get an update only with a new version: installed copies are cached by it.
+
+Live session check: the band as the user sees it, drawn by the real engine.
+
+1. Make a throwaway git repo under `/tmp` with one commit and an uncommitted change, so the diff segment shows.
+2. Start `claude --model haiku` (cheap) there in a detached `tmux` session 180 columns wide; the working copy loads by itself. Answer the trust prompt with Down, Enter.
+3. Drive it with `tmux send-keys`, sending Enter as its own call, and once more when the prompt stays in the input. Read the band with `tmux capture-pane -p`, 5 s after the action for anything the poll refreshes.
+4. For compaction, use a 200k model (`claude-haiku-4-5`) and fill the context by having Claude read large files. Only a session with a compaction window compacts at the threshold: `CLAUDE_CODE_AUTO_COMPACT_WINDOW=120000` (100000 at least) brings `compact in N` and a mid-turn auto-compaction.
+5. Kill the tmux session, list the repo and its transcripts folder `~/.claude/projects/-tmp-<name>`, then delete both.
 
 Gotchas:
 
 - `compacted ×N` counts the `"subtype":"compact_boundary"` rows of the session's transcript (`hooks/register.tsx`, `refreshCompactions`). No event can tell it: where managed settings exist or the login is Team or Enterprise, the built-in guard `cc-plugin-sec-default` passes `session.compact` and `classic.*` over every installed mod. The transcript's entry format is internal to Claude Code, so when the count stops showing after an update, check that row first.
 - Removing a `$.state` key makes a hot-reloading session log one `ui.render hook skipped … $.state.get refused` line: the old module instance draws once against the new contract. The next reload clears it.
-- `claude plugin test` runs each file in a nested `claude` process. Under a managed `processWrapper` that refuses socket stdio, every file fails with "the file did not load". Report it to the user, and leave the wrapper and managed settings as they are.
+- `claude plugin test` runs each file in a nested `claude` process. Under the maintainer's managed `processWrapper`, which refuses socket stdio, every file fails with "the file did not load". Leave the wrapper and managed settings as they are: the live session check is the run here, chosen by the maintainer over CI.
