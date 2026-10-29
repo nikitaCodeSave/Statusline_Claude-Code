@@ -36,5 +36,6 @@ Done when every check holds:
 
 Gotchas:
 
+- `compacted ×N` counts the `"subtype":"compact_boundary"` rows of the session's transcript (`hooks/register.tsx`, `refreshCompactions`). No event can tell it: where managed settings exist or the login is Team or Enterprise, the built-in guard `cc-plugin-sec-default` passes `session.compact` and `classic.*` over every installed mod. The transcript's entry format is internal to Claude Code, so when the count stops showing after an update, check that row first.
 - Removing a `$.state` key makes a hot-reloading session log one `ui.render hook skipped … $.state.get refused` line: the old module instance draws once against the new contract. The next reload clears it.
 - `claude plugin test` runs each file in a nested `claude` process. Under a managed `processWrapper` that refuses socket stdio, every file fails with "the file did not load". Report it to the user, and leave the wrapper and managed settings as they are.

@@ -11,6 +11,7 @@ import {
   isActiveAgent,
   limitLabel,
   parseShortstat,
+  projectKey,
   spinnerSuffix,
   toUsage,
 } from './format'
@@ -21,6 +22,8 @@ const LIMIT_MARKS = [80, 95]
 const POLL_MS = 5_000
 const GIT_STALE_MS = 15_000
 const GIT_MIN_GAP_MS = 3_000
+// The transcript's row for each compaction of the main conversation; a subagent's go to its own file.
+const COMPACT_ROW = '"subtype":"compact_boundary"'
 
 const usageAtom = atom({ plugin: 'loopline', key: 'usage' } as const, null)
 const identityAtom = atom({ plugin: 'loopline', key: 'identity' } as const, {
@@ -48,8 +51,10 @@ let ctxSeen: number | undefined
 let gitCheckedAt = 0
 let modelSeen = ''
 let refreshPending = false
+let transcript: Transcript | null = null
 
 type Settings = { stuckThreshold: number }
+type Transcript = { id: string; root: string; path: string | null; size: number; isScanned: boolean }
 
 export const register: Register = (on, options) => {
   const settings: Settings = {
@@ -62,7 +67,7 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  // Native session events, not classic.*: where managed settings exist, the built-in security
+  // A native session event, not classic.*: where managed settings exist, the built-in security
   // plugin sits in the prepend tier and sends classic events past the user tier, so a classic
   // hook here never runs.
   // /clear and /resume end the session without a new session.start, and $.state starts over.
@@ -72,14 +77,6 @@ export const register: Register = (on, options) => {
     if (e.reason === 'clear' || e.reason === 'resume') {
       resetBookkeeping()
       refreshPending = true
-    }
-    return result
-  })
-
-  on('session.compact', async ($, e, next) => {
-    const result = await next(e)
-    if (result.skip === undefined && e.trigger !== 'precompute' && e.agentId === undefined) {
-      await update($, compactionsAtom, n => n + 1)
     }
     return result
   })
@@ -193,6 +190,7 @@ function resetBookkeeping(): void {
   limitSeen.clear()
   ctxSeen = undefined
   modelSeen = ''
+  transcript = null
 }
 
 async function refreshAll($: EngineInterface): Promise<void> {
@@ -203,6 +201,7 @@ async function refreshAll($: EngineInterface): Promise<void> {
   const effort = configuredEffort(configured, model)
   await update($, identityAtom, id => ({ ...id, model: id.model ?? model, effort: id.effort ?? effort }))
   await refreshCompactAt($)
+  await refreshCompactions($)
   await refreshGit($, await $.clock.now())
   await refreshAgents($)
 }
@@ -214,12 +213,71 @@ async function refreshCompactAt($: EngineInterface): Promise<void> {
   await update($, compactAtAtom, () => at)
 }
 
+/**
+ * Compactions of the main conversation, counted in the session's transcript: one boundary row each,
+ * none for a vetoed one, a precompute or a subagent's. No event tells it: where managed settings exist
+ * or the login is a Team or Enterprise one, the built-in guard passes session.compact, and the rows it
+ * appends, over every mod a person installs. The rows' format is internal to Claude Code and may change
+ * in any release, and then the count stays at zero and the band shows none.
+ */
+async function refreshCompactions($: EngineInterface): Promise<void> {
+  const id = await $.session.id()
+  // /cd moves the transcript to the new directory's folder.
+  const root = await $.session.root()
+  if (transcript?.id !== id || transcript.root !== root) transcript = { id, root, path: null, size: -1, isScanned: false }
+  const t = transcript
+  t.path ??= await findTranscript($, t)
+  if (t.path === null) return
+  const stat = await $.fs.stat(t.path).catch(() => null)
+  if (stat === null) {
+    t.path = null
+    return
+  }
+  if (stat.size === t.size) return
+  t.size = stat.size
+  const grep = await $.process.run(['grep', '-c', '-F', COMPACT_ROW, '--', t.path], { timeoutMs: 5_000 }).catch(() => null)
+  // grep exits 1 when nothing matches, and still prints the 0.
+  const count = grep !== null && grep.exitCode <= 1 ? Number.parseInt(grep.stdout, 10) : NaN
+  if (Number.isInteger(count) && count !== (await read($, compactionsAtom))) {
+    await update($, compactionsAtom, () => count)
+  }
+}
+
+/**
+ * The session's transcript, `projects/<folder>/<id>.jsonl` under the config folder, where the folder is
+ * the one CLAUDE_CODE_PROJECT_DIR_NAME pins or else the session directory's key. One resumed from
+ * another directory, or under a path too long for a plain key, is searched for once the session has a
+ * prompt, so a transcript not yet written costs no search.
+ */
+async function findTranscript($: EngineInterface, t: Transcript): Promise<string | null> {
+  const configDir = await $.env.get('CLAUDE_CONFIG_DIR')
+  const home = (await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE'))
+  const config = configDir ?? (home === undefined ? undefined : `${home}/.claude`)
+  if (config === undefined) return null
+  const projects = `${config}/projects`
+  const file = `${t.id}.jsonl`
+  // A pinned folder name counts only beside CLAUDE_CONFIG_DIR.
+  const pinned = configDir === undefined ? undefined : await $.env.get('CLAUDE_CODE_PROJECT_DIR_NAME')
+  for (const folder of [pinned, projectKey(t.root)]) {
+    const path = `${projects}/${folder}/${file}`
+    if (folder !== undefined && (await $.fs.exists(path))) return path
+  }
+  if (t.isScanned || (await $.session.turns()) === 0) return null
+  t.isScanned = true
+  for (const entry of await $.fs.list(projects).catch(() => [])) {
+    const path = `${projects}/${entry.name}/${file}`
+    if (entry.kind === 'dir' && (await $.fs.exists(path))) return path
+  }
+  return null
+}
+
 async function poll($: EngineInterface): Promise<void> {
   if (refreshPending) {
     refreshPending = false
     await refreshAll($)
   }
   await refreshAgents($)
+  await refreshCompactions($)
   const now = await $.clock.now()
   if (now - gitCheckedAt >= GIT_STALE_MS) await refreshGit($, now)
   // Nothing else redraws on time alone: keep the cache countdown and the session clock current.

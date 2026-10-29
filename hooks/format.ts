@@ -163,6 +163,15 @@ export function parseShortstat(text: string): { added: number; removed: number }
   return { added: Number(added ?? 0), removed: Number(removed ?? 0) }
 }
 
+/**
+ * The folder under `projects/` Claude Code keeps a directory's transcripts in: the path with every
+ * character but letters and digits a dash. A key past 200 characters is cut and gets a hash of the
+ * path, which only a search finds.
+ */
+export function projectKey(path: string): string {
+  return path.replace(/[^a-zA-Z0-9]/g, '-')
+}
+
 export function toUsage(
   startedAt: number,
   context: SessionContextUsage,

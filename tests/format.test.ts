@@ -15,6 +15,7 @@ import {
   fmtReset,
   fmtTokens,
   parseShortstat,
+  projectKey,
   shortModel,
   spinnerSuffix,
 } from '../hooks/format'
@@ -94,6 +95,11 @@ describe('formatting', () => {
     expect(callKey('mcp__x__y', { q: 1, tool_use_id: 'abc' }).key).toBe('mcp__x__y {"q":1}')
     expect(editedPath('NotebookEdit', { notebook_path: '/n.ipynb' })).toBe('/n.ipynb')
     expect(editedPath('Read', { file_path: '/a.ts' })).toBeNull()
+  })
+
+  test('a directory keys its transcripts folder as Claude Code does', () => {
+    expect(projectKey('/home/nikita/PROJECTS/Statusline_Claude-Code')).toBe('-home-nikita-PROJECTS-Statusline-Claude-Code')
+    expect(projectKey('C:\\Users\\u\\my app')).toBe('C--Users-u-my-app')
   })
 })
 

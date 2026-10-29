@@ -17,6 +17,17 @@ function ran(stdout: string, exitCode = 0): ProcessRunResult {
 
 /** Answers every host call the mod makes; `npm test` fails as a tool call. */
 function host(on: On, agents: AgentInfo[] = []) {
+  // Session s1 runs in /home/u/shop; its transcript holds `compactions` boundary rows.
+  const transcript = { root: '/home/u/shop', path: '/home/u/.claude/projects/-home-u-shop/s1.jsonl', size: 4_096, compactions: 0 }
+  mock.env(on, { HOME: '/home/u' })
+  on('session.id', () => ({ value: 's1' }))
+  on('session.root', () => ({ value: transcript.root }))
+  on('session.turns', () => ({ value: 3 }))
+  on('fs.exists', ($, e) => ({ value: e.path === transcript.path }))
+  on('fs.list', () => ({
+    value: ['-home-u-shop', '-home-u-old'].map(name => ({ name, kind: 'dir' as const, size: 0, mtimeMs: 0, isLink: false })),
+  }))
+  on('fs.stat', () => ({ value: { kind: 'file' as const, size: transcript.size, mtimeMs: NOW, isLink: false } }))
   const usage: { value: SessionUsage } = {
     value: {
       startedAt: NOW - 10 * 60_000,
@@ -31,6 +42,9 @@ function host(on: On, agents: AgentInfo[] = []) {
     if (cmd === 'git' && sub === 'branch') return { value: ran('feature/loop\n') }
     if (cmd === 'git' && sub === 'status') return { value: ran(' M hooks/a.ts\n?? notes.md\n') }
     if (cmd === 'git' && sub === 'diff') return { value: ran(' 1 file changed, 12 insertions(+), 3 deletions(-)\n') }
+    if (cmd === 'grep' && e.argv.at(-1) === transcript.path) {
+      return { value: ran(`${transcript.compactions}\n`, transcript.compactions > 0 ? 0 : 1) }
+    }
     seen.commands.push(e.argv.join(' '))
     return { value: ran('', 1) }
   })
@@ -56,7 +70,7 @@ function host(on: On, agents: AgentInfo[] = []) {
     const { Text } = $.ui.resolve(e)
     return Text({ children: [e.props.word + e.props.suffix] })
   })
-  return { usage, seen, compactAt }
+  return { usage, seen, compactAt, transcript }
 }
 
 const SPINNER = { plugin: 'loopline', component: 'Spinner', props: { word: 'Thinking', message: null, suffix: '…', mode: 'tool-use' } } as const
@@ -167,30 +181,41 @@ describe('compaction', () => {
     expect(await band.find({ text: /26% · compact in 8k/ })).toBeDefined()
   })
 
-  test('each compaction of the main conversation is counted in the band', async ($, on) => {
-    mock.clock(on, { now: NOW })
-    host(on)
-    on('session.compact', () => ({ messages: [] }))
+  test("the compactions the session's transcript records are counted at the next poll", async ($, on) => {
+    const clock = mock.clock(on, { now: NOW })
+    const { transcript } = host(on)
     await start($)
     let band = await $.ui.mount({ ...BAND, surface: 'terminal' })
     expect(await band.find({ text: /compacted/ })).toBeUndefined()
     await band.unmount()
-    await $.session.compact({ trigger: 'auto', messages: [] })
-    await $.session.compact({ trigger: 'manual', messages: [] })
+    transcript.compactions = 2
+    transcript.size += 1_000
+    await clock.advance(5_000)
     band = await $.ui.mount({ ...BAND, surface: 'terminal' })
     expect(await band.find({ text: /compacted ×2/ })).toBeDefined()
   })
 
-  test('a vetoed compaction, a precompute and a subagent compaction are not counted', async ($, on) => {
-    mock.clock(on, { now: NOW })
-    host(on)
-    on('session.compact', ($, e) => (e.trigger === 'manual' ? { skip: 'vetoed' } : { messages: [] }))
+  test('after /cd the transcript is read from the new directory\'s folder', async ($, on) => {
+    const clock = mock.clock(on, { now: NOW })
+    const { transcript } = host(on)
+    transcript.compactions = 1
     await start($)
-    await $.session.compact({ trigger: 'manual', messages: [] })
-    await $.session.compact({ trigger: 'precompute', messages: [] })
-    await $.session.compact({ trigger: 'auto', agentId: 'a1', messages: [] })
+    transcript.root = '/home/u/next'
+    transcript.path = '/home/u/.claude/projects/-home-u-next/s1.jsonl'
+    transcript.compactions = 3
+    await clock.advance(5_000)
     const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
-    expect(await band.find({ text: /compacted/ })).toBeUndefined()
+    expect(await band.find({ text: /compacted ×3/ })).toBeDefined()
+  })
+
+  test('the transcript of a session resumed from another directory is found by its id', async ($, on) => {
+    mock.clock(on, { now: NOW })
+    const { transcript } = host(on)
+    transcript.path = '/home/u/.claude/projects/-home-u-old/s1.jsonl'
+    transcript.compactions = 1
+    await start($)
+    const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    expect(await band.find({ text: /compacted ×1/ })).toBeDefined()
   })
 })
 

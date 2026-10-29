@@ -53,7 +53,7 @@ declare module 'claude-code' {
       ctxDelta: number | null
       /** When the main loop last got a model response: the prompt cache's clock. */
       cacheAt: number | null
-      /** Compactions since the context began (a /clear starts it over). */
+      /** Compactions of the main conversation the session's transcript records (a /clear starts a new one). */
       compactions: number
       /** The context tokens at which auto-compaction runs; null when it is off. */
       compactAt: number | null
