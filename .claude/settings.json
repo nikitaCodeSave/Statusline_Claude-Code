@@ -38,8 +38,5 @@
       "Bash(gh repo archive:*)",
       "Bash(gh release delete:*)"
     ]
-  },
-  "env": {
-    "CLAUDE_CODE_AUTO_MODE_SERVER": "0"
   }
 }

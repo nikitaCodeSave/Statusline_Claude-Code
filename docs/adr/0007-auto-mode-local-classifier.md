@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by 0008
 ---
 # В этом проекте auto mode проверяет действия собственным классификатором Claude Code
 
