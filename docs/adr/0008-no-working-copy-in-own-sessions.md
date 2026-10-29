@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by 0009
 ---
 # Сессии в самом репозитории не загружают рабочую копию
 
