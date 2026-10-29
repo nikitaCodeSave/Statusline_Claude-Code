@@ -60,7 +60,7 @@ declare module 'claude-code' {
       cacheTtl: LooplineCacheTtl | null
       /** Compactions of the main conversation the session's transcript records (a /clear starts a new one). */
       compactions: number
-      /** The context tokens at which auto-compaction runs; null when it is off. */
+      /** The context tokens at which auto-compaction runs; null when it is off or no compaction window is set. */
       compactAt: number | null
     }
   }

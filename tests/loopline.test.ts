@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import type { AgentInfo, On, ProcessRunResult, SessionMeasureInput, SessionUsage, TurnUsage } from 'claude-code'
+import type { AgentInfo, ContextWindowSource, On, ProcessRunResult, SessionMeasureInput, SessionUsage, TurnUsage } from 'claude-code'
 
 const NOW = Date.parse('2026-10-06T12:00:00Z')
 const SURFACES = ['terminal', 'desktop'] as const
@@ -52,12 +52,18 @@ function host(on: On, agents: AgentInfo[] = []) {
     seen.toasts.push(e.text)
     return { value: undefined }
   })
-  const compactAt: { value: number | null } = { value: null }
-  // The breakdown is the engine's long /context shape; the mod reads its two auto-compact fields.
+  const compactAt: { value: number | null; source: ContextWindowSource } = { value: null, source: 'env' }
+  // The breakdown is the engine's long /context shape; the mod reads its three auto-compact fields.
   on('session.usage', ($, e) => ({
     value: e.breakdown === undefined || compactAt.value === null
       ? usage.value
-      : { ...usage.value, context: { ...usage.value.context, breakdown: { isAutoCompactEnabled: true, autoCompactThreshold: compactAt.value } as never } },
+      : {
+          ...usage.value,
+          context: {
+            ...usage.value.context,
+            breakdown: { isAutoCompactEnabled: true, autoCompactThreshold: compactAt.value, autocompactSource: compactAt.source } as never,
+          },
+        },
   }))
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
   on('settings.read', () => ({ value: { effortLevel: 'xhigh' } }))
@@ -200,6 +206,17 @@ describe('compaction', () => {
     await start($)
     const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
     expect(await band.find({ text: /26% · compact in 8k/ })).toBeDefined()
+  })
+
+  test("on the model's own limit there is no countdown: the engine compacts only once a request no longer fits", async ($, on) => {
+    mock.clock(on, { now: NOW })
+    const { usage, compactAt } = host(on)
+    compactAt.value = 60_000
+    compactAt.source = 'auto'
+    usage.value = { ...usage.value, context: { window: 200_000, tokens: 52_000, percent: 26 } }
+    await start($)
+    const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    expect(await band.find({ text: /compact (in|due)/ })).toBeUndefined()
   })
 
   test("the compactions the session's transcript records are counted at the next poll", async ($, on) => {

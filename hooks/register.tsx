@@ -219,10 +219,15 @@ async function refreshUsage($: EngineInterface): Promise<void> {
   await alertThresholds($, usage.context.percent, usage.rateLimits)
 }
 
-/** Where auto-compaction runs: from the local /context estimate, which sends no request. */
+/**
+ * Where auto-compaction runs: from the local /context estimate, which sends no request. Only a session
+ * with a compaction window compacts there; on the model's own limit (`auto`) the engine compacts once a
+ * request no longer fits, so the band has no point to count down to.
+ */
 async function refreshCompactAt($: EngineInterface): Promise<void> {
   const { breakdown } = (await $.session.usage({ breakdown: 'summary' })).context
-  const at = breakdown?.isAutoCompactEnabled === true ? breakdown.autoCompactThreshold ?? null : null
+  const hasWindow = breakdown?.isAutoCompactEnabled === true && breakdown.autocompactSource !== 'auto'
+  const at = hasWindow ? breakdown.autoCompactThreshold ?? null : null
   await update($, compactAtAtom, () => at)
 }
 
