@@ -24,6 +24,8 @@ Done when `claude plugin list` shows `loopline@nikitacodesave` enabled and no se
 
 The maintainer loads this working copy in every session through `CLAUDE_CODE_PLUGIN_DIRS` in the `env` of `~/.claude/settings.json` (`claude plugin list` shows `loopline@inline`). An edit therefore reaches the live session when the turn that made it ends.
 
+Work on `main` itself, brought up to date with `git pull --ff-only` before the first edit; make no other branch. When the user asks for a commit, commit on `main` and push it.
+
 The API's authority is the declaration file Claude Code writes into `.claude-plugin/types/` (gitignored) when it loads the mod with `claude --plugin-dir .`. The API is early access and moves between releases, so grep that file for the event or method at hand.
 
 Done when every check holds:
