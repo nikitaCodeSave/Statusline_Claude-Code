@@ -1,6 +1,6 @@
 ---
 status: accepted
 ---
-# Branches and worktrees are allowed; `main` stays the default
+# Ветки и worktree разрешены; `main` остаётся веткой по умолчанию
 
-Since 3785c5c work happened on `main` only, with no other branch. mattpocock-skills' `/implement-spec`, `/prototype` and `/wayfinder` make a branch or a worktree as one of their steps and would stall on that rule, so on 2026-10-29 the user allowed them. Work starts on `main`, brought up to date with `git pull --ff-only`; a skill or task that needs its own branch or worktree may make one. `.claude/settings.json` therefore denies no branch command; force-push and `git reset --hard` stay denied.
+Начиная с 3785c5c работа шла только на `main`, без других веток. `/implement-spec`, `/prototype` и `/wayfinder` из mattpocock-skills создают ветку или worktree одним из своих шагов и застревали бы на этом правиле, поэтому 2026-10-29 пользователь их разрешил. Работа начинается на `main`, обновлённой через `git pull --ff-only`; навык или задача, которым нужна своя ветка или worktree, могут её создать. Поэтому `.claude/settings.json` не запрещает ни одной команды для веток; force-push и `git reset --hard` по-прежнему запрещены.

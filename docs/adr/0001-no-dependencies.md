@@ -1,6 +1,6 @@
 ---
 status: accepted
 ---
-# The mod has no dependencies, and a live session verifies it
+# У мода нет зависимостей, а проверяет его живая сессия
 
-loopline is code Claude Code loads and runs as it is: no `package.json`, no build, no dependency. On 2026-10-29 the `tsc -p .` check left `CLAUDE.md` and `README.md`: TypeScript is not installed on the maintainer's machine, adding it through `npx` would make it the mod's first external dependency, and a separate Claude Code session shows whether a change works (the live session check). A dependency, a build step or a type-check gate now needs the user's approval first. `.claude-plugin/types/` and `tsconfig.json` stay, as the API reference and for the editor.
+loopline — код, который Claude Code загружает и запускает как есть: без `package.json`, без сборки, без зависимостей. 2026-10-29 проверка `tsc -p .` ушла из `CLAUDE.md` и `README.md`: TypeScript не установлен на машине мейнтейнера, добавление его через `npx` сделало бы его первой внешней зависимостью мода, а работает ли изменение, показывает отдельная сессия Claude Code (проверка в живой сессии). Зависимость, шаг сборки или обязательная проверка типов теперь сначала требуют одобрения пользователя. `.claude-plugin/types/` и `tsconfig.json` остаются как справочник по API и для редактора.

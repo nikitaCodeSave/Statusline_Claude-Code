@@ -1,30 +1,30 @@
 # loopline
 
-A Claude Code mod that shows the current session's state above the prompt.
+Мод Claude Code, который показывает состояние текущей сессии над промптом.
 
 ## Language
 
-**Session state**:
-What Claude Code and git know about the current session; the only thing loopline displays.
+**Состояние сессии** (session state):
+То, что Claude Code и git знают о текущей сессии; единственное, что показывает loopline.
 
-**Band**:
-The lines loopline draws above the prompt (`AbovePrompt`); _полоса_ in `README.md`.
-_Avoid_: statusline, status line (the command statusline this repository used to ship, and Claude Code's `statusLine` setting)
+**Полоса** (`band`):
+Строки, которые loopline рисует над промптом (`AbovePrompt`); в `README.md` — _полоса_.
+_Avoid_: statusline, status line (командный statusline, который раньше поставлял этот репозиторий, и настройка Claude Code `statusLine`)
 
-**Spinner suffix**:
-The text loopline appends to Claude Code's spinner while a turn runs.
+**Суффикс спиннера** (`spinnerSuffix`):
+Текст, который loopline добавляет к спиннеру Claude Code, пока идёт ход.
 
-**Display item**:
-One piece of session state shown in the band or the spinner suffix, such as ctx, cost or the cache clock.
+**Элемент** (display item):
+Одна часть состояния сессии, показанная в полосе или в суффиксе спиннера, например `ctx`, `cost` или часы кэша.
 
-**Working copy**:
-This folder, loaded into every session of the maintainer through `CLAUDE_CODE_PLUGIN_DIRS` and listed as `loopline@inline`.
+**Рабочая копия** (working copy):
+Эта папка; она загружается в каждую сессию мейнтейнера через `CLAUDE_CODE_PLUGIN_DIRS` и значится как `loopline@inline`.
 
-**Installed copy**:
-loopline as users get it from the `nikitacodesave` marketplace, cached by `version`.
+**Установленная копия** (installed copy):
+loopline в том виде, в каком пользователи получают его из маркетплейса `nikitacodesave`, закэшированный по `version`.
 
-**Live session check**:
-A real Claude Code session in tmux with the working copy loaded, its band read with `tmux capture-pane -p`; it stands in for `claude plugin test`, which cannot run here.
+**Проверка в живой сессии** (live session check):
+Настоящая сессия Claude Code в tmux с загруженной рабочей копией, полосу которой читают через `tmux capture-pane -p`; она заменяет `claude plugin test`, который здесь не может запуститься.
 
-**Agent working files**:
-`.scratch/`, `docs/agents/` and `docs/research/`: material for agents that is gitignored and stays on the maintainer's machine.
+**Рабочие файлы агентов** (agent working files):
+`.scratch/`, `docs/agents/` и `docs/research/`: материалы для агентов, которые лежат в `.gitignore` и остаются на машине мейнтейнера.

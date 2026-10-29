@@ -1,12 +1,12 @@
 ---
 name: install-loopline
-description: Install loopline for a user and migrate them off the old command statusline this repository used to ship. Use when asked to install, set up or migrate to loopline.
+description: Установить loopline пользователю и перевести его со старого командного statusline, который раньше поставлял этот репозиторий. Использовать, когда просят установить loopline, настроить его или перейти на него.
 ---
 
-# Install loopline for a user
+# Установка loopline пользователю
 
-1. `claude --version` reports at least the minimum release `README.md` states (section «Установка»).
-2. Run `claude plugin marketplace add nikitaCodeSave/Statusline_Claude-Code`, then `claude plugin install loopline@nikitacodesave`.
-3. Migrate from the old command statusline this repository used to ship. If `statusLine` or `subagentStatusLine` in `~/.claude/settings.json` runs `statusline.js` or `statusline-subagent.js`, remove those two keys and keep every other key (2-space JSON). Then delete `~/.claude/statusline.js` and `~/.claude/statusline-subagent.js`. A `statusLine` that runs anything else is the user's own: ask before touching it.
+1. `claude --version` сообщает релиз не ниже минимального, который указан в `README.md` (раздел «Установка»).
+2. Выполните `claude plugin marketplace add nikitaCodeSave/Statusline_Claude-Code`, затем `claude plugin install loopline@nikitacodesave`.
+3. Переведите пользователя со старого командного statusline, который раньше поставлял этот репозиторий. Если `statusLine` или `subagentStatusLine` в `~/.claude/settings.json` запускает `statusline.js` или `statusline-subagent.js`, удалите эти два ключа и сохраните все остальные (JSON с отступом в 2 пробела). Затем удалите `~/.claude/statusline.js` и `~/.claude/statusline-subagent.js`. `statusLine`, который запускает что-то другое, принадлежит пользователю: спросите, прежде чем его трогать.
 
-Done when `claude plugin list` shows `loopline@nikitacodesave` enabled and no settings key runs the old scripts. Tell the user to run `/reload-plugins` in sessions already open.
+Готово, когда `claude plugin list` показывает `loopline@nikitacodesave` включённым и ни один ключ настроек не запускает старые скрипты. Скажите пользователю выполнить `/reload-plugins` в уже открытых сессиях.

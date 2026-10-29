@@ -1,6 +1,6 @@
 ---
 status: accepted
 ---
-# The agent guide pins no Claude Code release and no model id
+# Руководство агента не закрепляет ни релиз Claude Code, ни идентификатор модели
 
-On 2026-10-29 the user settled the guide's disagreements with the harness in the harness's favour. The minimum Claude Code release is stated in `README.md` alone; `CLAUDE.md` and the `install-loopline` skill point there, so raising it is one edit. The live session check names a model by what it needs (the cheapest; a 200k context window) rather than by id, since ids go stale between releases.
+2026-10-29 пользователь разрешил расхождения руководства с harness в пользу harness. Минимальный релиз Claude Code указан только в `README.md`; `CLAUDE.md` и навык `install-loopline` ссылаются туда, поэтому поднять его — одна правка. Проверка в живой сессии называет модель по тому, что от неё нужно (самая дешёвая; окно контекста 200k), а не по идентификатору, потому что идентификаторы устаревают между релизами.

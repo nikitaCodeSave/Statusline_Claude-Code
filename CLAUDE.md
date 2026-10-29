@@ -1,97 +1,97 @@
-# loopline: agent guide
+# loopline: руководство агента
 
-loopline is a Claude Code mod: an in-process plugin of function hooks. The repository root is both the plugin and its marketplace, `nikitacodesave`. `README.md` (Russian) describes it to users; this file covers changing it, and the `install-loopline` skill installs it for a user.
+loopline — мод Claude Code: плагин из хуков-функций, который работает внутри процесса Claude Code. Корень репозитория одновременно и плагин, и его маркетплейс `nikitacodesave`. `README.md` (на русском) описывает мод пользователям; этот файл — о том, как его менять, а навык `install-loopline` устанавливает его пользователю.
 
-## Scope: session state, displayed
+## Охват: состояние сессии на экране
 
-loopline displays **session state**: what Claude Code and git know about the current session. That means model and effort, context with its growth, compactions and auto-compact headroom, cost, rate limits with their pace, the prompt-cache clock, the uncommitted diff, the main loop's turn counters, background agents and a repeated-failure warning. Hooks on events observe and return what `next(e)` returns. Drawing happens in two places only: the band above the prompt (`AbovePrompt`) and the spinner's suffix.
+loopline показывает **состояние сессии**: то, что Claude Code и git знают о текущей сессии. Это модель и effort, контекст и его рост, сжатия и запас до автосжатия, стоимость, лимиты и темп их расхода, часы prompt cache, незакоммиченный diff, счётчики хода основного цикла, фоновые агенты и предупреждение о повторяющихся сбоях. Хуки на события наблюдают и возвращают то, что возвращает `next(e)`. Рисует мод только в двух местах: в полосе над промптом (`AbovePrompt`) и в суффиксе спиннера.
 
-A new item fits when it is session state read from Claude Code or git. Project concerns (running or judging tests, gates, command guards) belong to the project's rules, settings hooks, `/goal` or CI. They were removed from loopline on purpose, along with desktop notifications, buttons, panes and a per-turn ledger, all of which proved to be noise in heavy agentic use.
+Новый элемент подходит, если это состояние сессии, прочитанное из Claude Code или git. То, что относится к проекту (запуск или оценка тестов, обязательные проверки, ограничители команд), принадлежит правилам проекта, хукам в настройках, `/goal` или CI. Это намеренно убрали из loopline вместе с desktop-уведомлениями, кнопками, панелями и журналом по ходам: при интенсивной агентной работе всё это оказалось шумом.
 
-## Boundaries
+## Границы (Boundaries)
 
-- **Ask first:** a new display item (Scope above) · a dependency: the mod has none, and Claude Code runs it as it is.
-- **Never:** force-push or a hard reset · edit `.claude-plugin/types/`, which Claude Code writes · change the managed `processWrapper` or managed settings. `.claude/settings.json` denies those a permission rule can express.
+- **Сначала спросить:** новый элемент (см. «Охват» выше) · зависимость: у мода их нет, и Claude Code запускает его как есть.
+- **Никогда:** force-push или hard reset · правка `.claude-plugin/types/`, который пишет Claude Code · изменение управляемого `processWrapper` или управляемых настроек. `.claude/settings.json` запрещает то из этого, что выражается правилом разрешений.
 
-## Change the mod
+## Как менять мод
 
-- `hooks/format.ts` is pure: formatting, the band's lines, the spinner suffix. Most changes land here.
-- `hooks/register.tsx` holds the hooks and every `$` call.
-- `types/index.d.ts` is the `$.state` contract. It declares every key `register.tsx` reads or writes.
+- `hooks/format.ts` — чистые функции: форматирование, строки полосы, суффикс спиннера. Большинство правок попадает сюда.
+- В `hooks/register.tsx` — хуки и все вызовы `$`.
+- `types/index.d.ts` — контракт `$.state`. Он объявляет каждый ключ, который `register.tsx` читает или пишет.
 
-The maintainer loads this working copy in every session through `CLAUDE_CODE_PLUGIN_DIRS` in the `env` of `~/.claude/settings.json` (`claude plugin list` shows `loopline@inline`). An edit therefore reaches the live session when the turn that made it ends.
+Мейнтейнер загружает эту рабочую копию в каждую сессию через `CLAUDE_CODE_PLUGIN_DIRS` в `env` файла `~/.claude/settings.json` (`claude plugin list` показывает `loopline@inline`). Поэтому правка доходит до живой сессии, когда заканчивается ход, в котором её сделали.
 
-Bring `main` up to date with `git pull --ff-only` before the first edit. Work on `main` by default; a skill or task that needs its own branch or worktree may make one. Commit finished work on the current branch and push it without asking.
+Перед первой правкой обновите `main` через `git pull --ff-only`. По умолчанию работа идёт на `main`; навык или задача, которым нужна своя ветка или worktree, могут её создать. Законченную работу коммитьте в текущую ветку и пушьте без вопросов.
 
 Файлы проекта (`CLAUDE.md`, `docs/adr/`, `GLOSSARY.md`, `.claude/skills/`) и сообщения коммитов пишутся на русском; идентификаторы, команды, пути и имена из API остаются как есть (ADR 0006).
 
-loopline follows the newest Claude Code release: use the API and the props as the current declarations spell them (`weight`, not the deprecated `bold`), and when a change needs a newer release, raise the minimum in `README.md`, the one place it is stated. Older releases go unsupported.
+loopline следует за новейшим релизом Claude Code: API и пропсы используйте так, как их пишут текущие декларации (`weight`, а не устаревший `bold`), а когда правке нужен более новый релиз, поднимите минимум в `README.md` — единственном месте, где он указан. Старые релизы не поддерживаются.
 
-The API's authority is the declaration file Claude Code writes into `.claude-plugin/types/` (gitignored) when it loads the mod with `claude --plugin-dir .`. The API is early access and moves between releases, so grep that file for the event or method at hand.
+Источник истины об API — файл деклараций, который Claude Code пишет в `.claude-plugin/types/` (он в `.gitignore`), когда загружает мод через `claude --plugin-dir .`. API в раннем доступе и меняется от релиза к релизу, поэтому ищите нужное событие или метод в этом файле через grep.
 
-Commands:
+Команды (Commands):
 
 ```bash
-claude plugin validate .   # expected warnings: this file at the plugin root; ICON_MISSING among the plugin directory checks
-claude plugin test         # tests/; fails under the maintainer's processWrapper, so the live session check runs instead (Gotchas)
-node --experimental-strip-types scripts/render-screens.ts   # re-renders img/
+claude plugin validate .   # ожидаемые предупреждения: этот файл в корне плагина; ICON_MISSING среди проверок каталога плагинов
+claude plugin test         # tests/; падает под processWrapper мейнтейнера, поэтому вместо него — проверка в живой сессии (Подводные камни)
+node --experimental-strip-types scripts/render-screens.ts   # перерисовывает img/
 ```
 
-Done = `claude plugin validate .` exits 0 and the live session check below shows the change; report each command with its output, and the band as `tmux capture-pane -p` printed it.
+Done = `claude plugin validate .` завершается с кодом 0, и проверка в живой сессии ниже показывает изменение; приведите в отчёте каждую команду с её выводом и полосу в том виде, в каком её напечатал `tmux capture-pane -p`.
 
-Always:
+Всегда:
 
-- A test records the changed behaviour: band text through `bandLines` in `tests/format.test.ts`, engine behaviour in `tests/loopline.test.ts`.
-- When band or spinner output changed, re-render `img/`, look at the pictures, and make the README's element table and states match them.
-- Bump `version` in `.claude-plugin/plugin.json` when the change ships. Users get an update only with a new version: installed copies are cached by it.
+- Изменённое поведение фиксирует тест: текст полосы — через `bandLines` в `tests/format.test.ts`, поведение движка — в `tests/loopline.test.ts`.
+- Если изменился вывод полосы или спиннера, перерисуйте `img/`, посмотрите на картинки и приведите таблицу элементов и состояния в README в соответствие с ними.
+- Когда изменение выходит к пользователям, поднимите `version` в `.claude-plugin/plugin.json`. Пользователи получают обновление только с новой версией: установленные копии кэшируются по ней.
 
-Live session check: the band as the user sees it, drawn by the real engine.
+Проверка в живой сессии: полоса такой, какой её видит пользователь, нарисованная настоящим движком.
 
-1. Make a throwaway git repo under `/tmp` with one commit and an uncommitted change, so the diff segment shows.
-2. Start `claude` on the cheapest model there in a detached `tmux` session 180 columns wide; the working copy loads by itself. Answer the trust prompt with Down, Enter.
-3. Drive it with `tmux send-keys`, sending Enter as its own call, and once more when the prompt stays in the input. Read the band with `tmux capture-pane -p`, 5 s after the action for anything the poll refreshes.
-4. For compaction, use a model with a 200k context window and fill the context by having Claude read large files. Only a session with a compaction window compacts at the threshold: `CLAUDE_CODE_AUTO_COMPACT_WINDOW=120000` (100000 at least) brings `compact in N` and a mid-turn auto-compaction.
-5. Kill the tmux session, list the repo and its transcripts folder `~/.claude/projects/-tmp-<name>`, then delete both.
+1. Создайте одноразовый git-репозиторий в `/tmp` с одним коммитом и незакоммиченным изменением, чтобы показался сегмент diff.
+2. Запустите там `claude` на самой дешёвой модели в отсоединённой сессии `tmux` шириной 180 колонок; рабочая копия загрузится сама. На вопрос о доверии ответьте Down, Enter.
+3. Управляйте ею через `tmux send-keys`, отправляя Enter отдельным вызовом, и ещё раз, если промпт остался в поле ввода. Читайте полосу через `tmux capture-pane -p`; то, что обновляет опрос, — через 5 с после действия.
+4. Для сжатия возьмите модель с окном контекста 200k и заполните контекст, попросив Claude прочитать большие файлы. На пороге сжимается только сессия с окном сжатия: `CLAUDE_CODE_AUTO_COMPACT_WINDOW=120000` (не меньше 100000) даёт `compact in N` и автосжатие посреди хода.
+5. Завершите сессию tmux, выведите список файлов репозитория и его папки транскриптов `~/.claude/projects/-tmp-<name>`, затем удалите обе.
 
-Gotchas:
+Подводные камни:
 
-- `compacted ×N` counts the `"subtype":"compact_boundary"` rows of the session's transcript (`hooks/register.tsx`, `refreshCompactions`). No event can tell it: where managed settings exist or the login is Team or Enterprise, the built-in guard `cc-plugin-sec-default` passes `session.compact` and `classic.*` over every installed mod. The transcript's entry format is internal to Claude Code, so when the count stops showing after an update, check that row first.
-- Removing a `$.state` key makes a hot-reloading session log one `ui.render hook skipped … $.state.get refused` line: the old module instance draws once against the new contract. The next reload clears it.
-- `claude plugin test` runs each file in a nested `claude` process. Under the maintainer's managed `processWrapper`, which refuses socket stdio, every file fails with "the file did not load". The live session check is the run here, chosen by the maintainer over CI.
+- `compacted ×N` считает строки `"subtype":"compact_boundary"` в транскрипте сессии (`hooks/register.tsx`, `refreshCompactions`). Ни одно событие этого не сообщит: там, где есть управляемые настройки или вход через Team или Enterprise, встроенная защита `cc-plugin-sec-default` не передаёт `session.compact` и `classic.*` ни одному установленному моду. Формат записей транскрипта — внутреннее дело Claude Code, поэтому если после обновления счётчик перестал показываться, сначала проверьте эту строку.
+- Удаление ключа `$.state` заставляет сессию с горячей перезагрузкой записать в лог одну строку `ui.render hook skipped … $.state.get refused`: старый экземпляр модуля один раз рисует против нового контракта. Следующая перезагрузка это убирает.
+- `claude plugin test` запускает каждый файл во вложенном процессе `claude`. Под управляемым `processWrapper` мейнтейнера, который отказывает в stdio через сокеты, каждый файл падает с "the file did not load". Прогоном здесь служит проверка в живой сессии: мейнтейнер выбрал её вместо CI.
 
-## How we work
+## Как мы работаем (How we work)
 
-- A non-trivial change starts with an interview: ask until you could write the spec, then write it where the Agent skills block says: what and why, acceptance criteria as checks, non-goals, and any interface the user fixed, copied verbatim. Then build it in the same session.
-- Work that won't fit one session: say so and propose a split; the user runs `/to-tickets`. Each ticket is built in a fresh session from tests written beforehand, in a separate session, from its criteria. The implementer does not edit those tests; when one looks wrong, it says so. Large and still unclear: propose `/wayfinder` first.
-- One implementer at a time: no parallel fan-out on a bounded change.
-- A test must be able to fail. A bug is reproduced in the live session check before the fix, then recorded in a test.
-- Review: `/code-review` on a substantive diff. A change that adds a `$` call, an environment read or a process (the README's security section lists them all), or that touches the `$.state` contract or the transcript reading, gets a fresh session reviewing it against the spec: correctness only, file:line, at most three rounds, then rethink the approach.
-- Stuck twice on the same thing: stop and say what is needed: a decision, a credential, a service.
+- Нетривиальное изменение начинается с интервью: спрашивайте, пока не сможете написать спецификацию, затем запишите её туда, куда указывает блок Agent skills: что и зачем, критерии приёмки в виде проверок, что вне задачи и дословную копию интерфейса, если его зафиксировал пользователь. Затем реализуйте её в той же сессии.
+- Работа, которая не помещается в одну сессию: скажите об этом и предложите разбиение; пользователь запускает `/to-tickets`. Каждый тикет строится в свежей сессии по тестам, написанным заранее в отдельной сессии по его критериям. Исполнитель эти тесты не правит; если тест выглядит неверным, он говорит об этом. Большая и всё ещё неясная работа: сначала предложите `/wayfinder`.
+- Один исполнитель за раз: на ограниченном изменении работу не раздают нескольким агентам параллельно.
+- Тест должен уметь падать. Баг воспроизводится в проверке в живой сессии до исправления, затем фиксируется в тесте.
+- Ревью: `/code-review` на содержательный diff. Изменение, которое добавляет вызов `$`, чтение окружения или процесс (раздел о безопасности в README перечисляет их все) либо затрагивает контракт `$.state` или чтение транскрипта, проверяет свежая сессия по спецификации: только корректность, file:line, не больше трёх раундов, дальше — пересмотреть подход.
+- Дважды застряли на одном и том же: остановитесь и скажите, что нужно: решение, учётные данные, сервис.
 
-## Project knowledge
+## Знания проекта (Project knowledge)
 
-Each file is created when first needed, never empty. Files describe the present; history is git and its commit bodies, so no archive folders. `.scratch/`, `docs/agents/` and `docs/research/` are gitignored: they stay on this machine and keep no history. Nothing here is removed or closed without the user's confirmation: `/harness:wrap` proposes it, acts only after they confirm, and commits the work first.
+Каждый файл создаётся, когда впервые понадобится, и никогда не бывает пустым. Файлы описывают настоящее; история — это git и тела его коммитов, поэтому папок-архивов нет. `.scratch/`, `docs/agents/` и `docs/research/` в `.gitignore`: они остаются на этой машине и не хранят истории. Отсюда ничего не удаляется и не закрывается без подтверждения пользователя: `/harness:wrap` предлагает это, действует только после подтверждения и сначала коммитит работу.
 
-| Where | Holds | When it goes |
+| Где | Что хранит | Когда уходит |
 |---|---|---|
-| `GLOSSARY.md` | domain terms, added the first time one is used or settled; a name replaced by a better one stays under `_Avoid_` | a term only dropped work used |
-| `docs/adr/NNNN-<slug>.md` | decisions that are hard to reverse or that later work must follow, including ones the user mentions "for later", written in the session where they were made, each with a status: `accepted`, `deprecated` or `superseded by NNNN`; what it rests on from a spec or research note is written into the ADR itself, since those files keep no history | never: a changed decision is a new ADR, and setting the old one's status is the only edit an accepted ADR takes |
-| `.scratch/<feature>/` | open work only: its spec and tickets | finished and reviewed: once every line of the spec lives in a test, an ADR, the glossary or the commit message, the folder goes. Dropped: only when the user says so; what later work must follow goes to an ADR first, its tickets close `wontfix` with the reason, and code and tests built only for it are removed |
-| `docs/research/<slug>.md` | research for a decision still open | once its decision is recorded |
-| `.out-of-scope/<concept>.md` | a request the user rejected that later work must not re-propose, and why | when the user reverses the rejection |
+| `GLOSSARY.md` | термины предметной области; термин добавляется, когда его впервые используют или когда он устоялся; имя, заменённое лучшим, остаётся под `_Avoid_` | термин, которым пользовалась только брошенная работа |
+| `docs/adr/NNNN-<slug>.md` | решения, которые трудно отменить или которым должна следовать последующая работа, включая те, что пользователь упоминает «на потом»; каждое записывается в сессии, где его приняли, и имеет статус: `accepted`, `deprecated` или `superseded by NNNN`; то, на что решение опирается из спецификации или исследовательской заметки, вписывается в сам ADR, потому что эти файлы не хранят истории | никогда: изменённое решение — это новый ADR, а единственная правка, которую допускает принятый ADR, — смена его статуса |
+| `.scratch/<feature>/` | только открытая работа: её спецификация и тикеты | закончена и прошла ревью: когда каждая строка спецификации живёт в тесте, ADR, глоссарии или сообщении коммита, папка уходит. Брошена: только по слову пользователя; то, чему должна следовать последующая работа, сначала уходит в ADR, её тикеты закрываются как `wontfix` с причиной, а код и тесты, построенные только для неё, удаляются |
+| `docs/research/<slug>.md` | исследование для решения, которое ещё открыто | когда его решение записано |
+| `.out-of-scope/<concept>.md` | запрос, который пользователь отклонил и который последующая работа не должна предлагать снова, и почему | когда пользователь отменит отказ |
 
-Before changing an area, read the glossary entries and the ADRs that touch it, skipping those marked deprecated or superseded.
+Перед правкой области прочитайте записи глоссария и ADR, которые её касаются, пропуская помеченные `deprecated` или `superseded`.
 
 ## Agent skills
 
 ### Issue tracker
 
-Issues and specs live as markdown files under `.scratch/<feature>/` in this repo. See `docs/agents/issue-tracker.md`.
+Задачи и спецификации лежат markdown-файлами в `.scratch/<feature>/` этого репозитория. См. `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
-The five default roles, each label string equal to its name: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+Пять ролей по умолчанию, у каждой строка метки совпадает с её именем: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. См. `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
-Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Один контекст: один `GLOSSARY.md` и `docs/adr/` в корне репозитория. См. `docs/agents/domain.md`.
