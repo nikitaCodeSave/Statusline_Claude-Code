@@ -21,7 +21,7 @@ A new item fits when it is session state read from Claude Code or git. Project c
 
 The maintainer loads this working copy in every session through `CLAUDE_CODE_PLUGIN_DIRS` in the `env` of `~/.claude/settings.json` (`claude plugin list` shows `loopline@inline`). An edit therefore reaches the live session when the turn that made it ends.
 
-Bring `main` up to date with `git pull --ff-only` before the first edit. Work on `main` by default; a skill or task that needs its own branch or worktree may make one. When the user asks for a commit, commit on the current branch and push it.
+Bring `main` up to date with `git pull --ff-only` before the first edit. Work on `main` by default; a skill or task that needs its own branch or worktree may make one. Commit finished work on the current branch and push it without asking.
 
 loopline follows the newest Claude Code release: use the API and the props as the current declarations spell them (`weight`, not the deprecated `bold`), and when a change needs a newer release, raise the minimum in `README.md`, the one place it is stated. Older releases go unsupported.
 
