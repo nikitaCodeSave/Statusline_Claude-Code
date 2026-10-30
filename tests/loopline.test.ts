@@ -160,6 +160,29 @@ describe('a turn in the agent loop', () => {
     expect(await band.find({ text: /⚠ npm test failed/ })).toBeUndefined()
   })
 
+  test("a subagent's turn starting mid-turn leaves the main turn's counts, growth and streaks alone", async ($, on) => {
+    mock.clock(on, { now: NOW })
+    const { usage, seen } = host(on, [{ id: 'a1', description: 'explore', type: 'Explore', status: 'running' }])
+    await start($)
+    await $.turn.start({ text: 'make the tests pass', turnId: 't1' })
+    await edit($, 'a.ts')
+    for (let i = 0; i < 2; i++) await $.tool.call({ tool: 'Bash', command: 'npm test' })
+
+    usage.value = { ...usage.value, context: { window: 200_000, tokens: 56_000, percent: 28 } }
+    await $.turn.start({ text: 'explore the repo', turnId: 'a1-t1', agentId: 'a1' })
+    await $.tool.call({ tool: 'Bash', command: 'npm test' })
+
+    expect(seen.toasts).toContain('npm test failed 3× in a row. Is the agent stuck?')
+    const spinner = await $.ui.mount({ ...SPINNER, surface: 'terminal', requestId: 'main' })
+    expect(await spinner.find({ text: 'Thinking · 4 tools · 1 edit/1 file…' })).toBeDefined()
+    await spinner.unmount()
+
+    usage.value = { ...usage.value, context: { window: 200_000, tokens: 62_000, percent: 31 } }
+    await $.turn.complete({ answer: 'done', durationMs: 80_000, isAborted: false, turnId: 't1', reason: 'answer' })
+    const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    expect(await band.find({ text: /ctx .*31% \+12k/ })).toBeDefined()
+  })
+
   test('the model and effort a request actually used replace the configured ones', async ($, on) => {
     mock.clock(on, { now: NOW })
     host(on)

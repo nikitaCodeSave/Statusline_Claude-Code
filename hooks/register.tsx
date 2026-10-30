@@ -74,6 +74,7 @@ export const register: Register = (on, options) => {
   })
 
   on('turn.start', async ($, e, next) => {
+    if (e.agentId !== undefined) return next(e)
     const now = await $.clock.now()
     const { context } = await $.session.usage()
     turnFiles = new Set()
