@@ -49,7 +49,7 @@ const CALM: BandView = {
       { kind: 'seven_day', percentUsed: 4, resetsAt: reset(2 * DAY + 4 * HOUR) },
     ],
   },
-  identity: { model: 'claude-opus-5-5', effort: 'xhigh', branch: 'main', dirty: 0, added: 0, removed: 0 },
+  identity: { model: 'claude-opus-5-5', effort: 'xhigh', branch: 'main', ahead: 0, dirty: 0, added: 0, removed: 0 },
   turn: null,
   ctxDelta: 9_000,
   cacheAt: NOW - 2 * MIN,
@@ -75,7 +75,7 @@ const EDITING: BandView = {
       { kind: 'seven_day', percentUsed: 4, resetsAt: reset(2 * DAY + 4 * HOUR) },
     ],
   },
-  identity: { ...CALM.identity, branch: 'feat/session-cache', dirty: 6, added: 184, removed: 37 },
+  identity: { ...CALM.identity, branch: 'feat/session-cache', ahead: 2, dirty: 6, added: 184, removed: 37 },
   ctxDelta: 12_000,
   cacheAt: NOW - 19 * MIN,
 }
@@ -101,7 +101,7 @@ function band(view: BandView): Row[] {
 
 const SCENARIOS: { caption: string; rows: Row[] }[] = [
   { caption: 'Спокойная сессия на подписке: чистое дерево, кэш тёплый ещё 58 минут', rows: band(CALM) },
-  { caption: 'Незакоммиченные правки (+строки −строки, файлы) и прирост контекста за последний ход', rows: band(EDITING) },
+  { caption: 'Незапушенные коммиты (↑), незакоммиченные правки (+строки −строки, файлы) и прирост контекста за ход', rows: band(EDITING) },
   {
     caption: 'Claude работает: счётчики хода дописаны в спиннер, в работе два фоновых агента',
     rows: [spinnerRow(WORKING, 'Flambéing', '(2m 14s, 12.4k tokens)'), { blank: true }, ...band(WORKING)],
@@ -153,7 +153,7 @@ const SCENARIOS: { caption: string; rows: Row[] }[] = [
     }),
   },
   {
-    caption: 'Узкий терминал: первыми прячутся бар, токены, прирост и время сброса, затем effort и правки',
+    caption: 'Узкий терминал: первыми прячутся бар, токены, прирост и время сброса, затем effort и правки; ↑ остаётся',
     rows: band({ ...EDITING, width: 46 }),
   },
 ]

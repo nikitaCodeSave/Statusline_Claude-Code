@@ -19,6 +19,8 @@ export type LooplineIdentity = {
   model: string | null
   effort: string | null
   branch: string | null
+  /** Commits the branch is ahead of its upstream; 0 without one. */
+  ahead: number
   /** Changed and untracked files in the working tree. */
   dirty: number
   /** Lines added and removed against HEAD. */

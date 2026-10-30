@@ -16,6 +16,7 @@ import {
   fmtReset,
   fmtTokens,
   parseShortstat,
+  parseStatus,
   pinnedCacheTtl,
   projectKey,
   shortModel,
@@ -37,7 +38,7 @@ const VIEW: BandView = {
       { kind: 'seven_day', percentUsed: 12 },
     ],
   },
-  identity: { model: 'claude-opus-5-5', effort: 'xhigh', branch: 'main', dirty: 6, added: 184, removed: 37 },
+  identity: { model: 'claude-opus-5-5', effort: 'xhigh', branch: 'main', ahead: 0, dirty: 6, added: 184, removed: 37 },
   turn: null,
   ctxDelta: 12_000,
   cacheAt: NOW - 19 * 60_000,
@@ -91,6 +92,15 @@ describe('formatting', () => {
     expect(crossed(72, 80, [70, 85])).toBeNull()
     expect(parseShortstat(' 6 files changed, 184 insertions(+), 37 deletions(-)\n')).toEqual({ added: 184, removed: 37 })
     expect(parseShortstat(' 1 file changed, 1 insertion(+)\n')).toEqual({ added: 1, removed: 0 })
+  })
+
+  test('git status: the changed files, and the commits ahead of the upstream alone', () => {
+    expect(parseStatus('## main...origin/main [ahead 3]\n M a.ts\n?? b.md\n')).toEqual({ dirty: 2, ahead: 3 })
+    expect(parseStatus('## main...origin/main [ahead 2, behind 5]\n')).toEqual({ dirty: 0, ahead: 2 })
+    expect(parseStatus('## main...origin/main [behind 5]\n M a.ts\n')).toEqual({ dirty: 1, ahead: 0 })
+    for (const head of ['## main...origin/main [gone]', '## feat/x', '## HEAD (no branch)']) {
+      expect(parseStatus(`${head}\n`)).toEqual({ dirty: 0, ahead: 0 })
+    }
   })
 
   test('calls are keyed for the stuck detector; edits name their file', () => {
@@ -185,6 +195,13 @@ describe('band', () => {
 
   test('idle with background agents still running', () => {
     expect(text(bandLines({ ...VIEW, agents: { active: 1, total: 1 } })[2])).toBe('⧉ 1 agent')
+  })
+
+  test('commits ahead of the upstream sit by the branch, uncoloured, and stay when the diff gives way', () => {
+    const ahead = { ...VIEW, identity: { ...VIEW.identity, ahead: 3 } }
+    expect(text(bandLines(ahead)[0])).toBe('main ↑3 +184 −37 (6) · Opus5.5 xhigh  │  ctx ▰▰▱▱▱▱▱▱▱▱ 45k/200k 23% +12k')
+    expect(bandLines(ahead)[0]?.[1]).toEqual({ text: ' ↑3' })
+    expect(text(bandLines({ ...ahead, width: 37 })[0])).toBe('main ↑3 · Opus5.5  │  ctx 23%')
   })
 
   test('narrow: optional runs go first, with their separators', () => {

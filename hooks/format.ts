@@ -179,6 +179,17 @@ export function crossed(prev: number, next: number, marks: readonly number[]): n
   return hit
 }
 
+/**
+ * `git status --porcelain --branch` -> changed and untracked files, and commits ahead of the upstream.
+ * Without an upstream, detached or with the upstream gone, the `##` line names no `ahead`.
+ */
+export function parseStatus(text: string): { dirty: number; ahead: number } {
+  const lines = text.split('\n').filter(Boolean)
+  const head = lines[0]?.startsWith('## ') === true ? lines.shift() : undefined
+  const ahead = head === undefined ? undefined : /\[ahead (\d+)/.exec(head)?.[1]
+  return { dirty: lines.length, ahead: Number(ahead ?? 0) }
+}
+
 /** `git diff --shortstat` -> lines added and removed. */
 export function parseShortstat(text: string): { added: number; removed: number } {
   const added = /(\d+) insertions?\(\+\)/.exec(text)?.[1]
@@ -286,7 +297,9 @@ function identityLine(v: BandView): Seg[] {
       if (identity.removed > 0) diff.push({ text: ` −${identity.removed}`, color: 'error', optional: true, group: 'diff' })
       diff.push({ text: ` (${identity.dirty})`, dim: true, optional: true })
     }
-    who.push([{ text: identity.branch, color: 'merged' }, ...diff])
+    // What waits to be pushed stays when the diff gives way.
+    const ahead: Seg[] = identity.ahead > 0 ? [{ text: ` ↑${identity.ahead}` }] : []
+    who.push([{ text: identity.branch, color: 'merged' }, ...ahead, ...diff])
   }
   who.push([
     { text: shortModel(identity.model), color: 'suggestion', bold: true },

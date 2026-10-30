@@ -11,6 +11,7 @@ import {
   isActiveAgent,
   limitLabel,
   parseShortstat,
+  parseStatus,
   pinnedCacheTtl,
   projectKey,
   spinnerSuffix,
@@ -31,6 +32,7 @@ const identityAtom = atom({ plugin: 'loopline', key: 'identity' } as const, {
   model: null,
   effort: null,
   branch: null,
+  ahead: 0,
   dirty: 0,
   added: 0,
   removed: 0,
@@ -327,7 +329,7 @@ async function refreshGit($: EngineInterface, now: number): Promise<void> {
   gitCheckedAt = now
   const current = await $.process.run(['git', 'branch', '--show-current'], { timeoutMs: 5_000 }).catch(() => null)
   if (current === null || current.exitCode !== 0) {
-    await update($, identityAtom, id => ({ ...id, branch: null, dirty: 0, added: 0, removed: 0 }))
+    await update($, identityAtom, id => ({ ...id, branch: null, ahead: 0, dirty: 0, added: 0, removed: 0 }))
     return
   }
   let branch = current.stdout.trim()
@@ -335,13 +337,14 @@ async function refreshGit($: EngineInterface, now: number): Promise<void> {
     const head = await $.process.run(['git', 'rev-parse', '--short', 'HEAD'], { timeoutMs: 5_000 }).catch(() => null)
     branch = head?.stdout.trim() || 'HEAD'
   }
-  const status = await $.process.run(['git', 'status', '--porcelain'], { timeoutMs: 5_000 }).catch(() => null)
-  const dirty = status === null ? 0 : status.stdout.split('\n').filter(Boolean).length
+  // `--branch` reads the upstream from local refs: no fetch, so nothing behind is known or shown.
+  const status = await $.process.run(['git', 'status', '--porcelain', '--branch'], { timeoutMs: 5_000 }).catch(() => null)
+  const { dirty, ahead } = parseStatus(status === null ? '' : status.stdout)
   const stat = dirty === 0
     ? null
     : await $.process.run(['git', 'diff', 'HEAD', '--shortstat'], { timeoutMs: 5_000 }).catch(() => null)
   const { added, removed } = parseShortstat(stat !== null && stat.exitCode === 0 ? stat.stdout : '')
-  await update($, identityAtom, id => ({ ...id, branch, dirty, added, removed }))
+  await update($, identityAtom, id => ({ ...id, branch, ahead, dirty, added, removed }))
 }
 
 async function refreshAgents($: EngineInterface): Promise<void> {

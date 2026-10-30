@@ -37,10 +37,12 @@ function host(on: On, agents: AgentInfo[] = []) {
     },
   }
   const seen = { toasts: [] as string[], commands: [] as string[] }
+  // The branch line `git status --branch` prints first: the upstream, and how far ahead of it.
+  const git = { head: '## feature/loop...origin/feature/loop' }
   on('process.run', ($, e) => {
     const [cmd, sub] = e.argv
     if (cmd === 'git' && sub === 'branch') return { value: ran('feature/loop\n') }
-    if (cmd === 'git' && sub === 'status') return { value: ran(' M hooks/a.ts\n?? notes.md\n') }
+    if (cmd === 'git' && sub === 'status') return { value: ran(`${git.head}\n M hooks/a.ts\n?? notes.md\n`) }
     if (cmd === 'git' && sub === 'diff') return { value: ran(' 1 file changed, 12 insertions(+), 3 deletions(-)\n') }
     if (cmd === 'grep' && e.argv.at(-1) === transcript.path) {
       return { value: ran(`${transcript.compactions}\n`, transcript.compactions > 0 ? 0 : 1) }
@@ -83,7 +85,7 @@ function host(on: On, agents: AgentInfo[] = []) {
     const { Text } = $.ui.resolve(e)
     return Text({ children: [e.props.word + e.props.suffix] })
   })
-  return { usage, seen, compactAt, transcript, answer }
+  return { usage, seen, compactAt, transcript, answer, git }
 }
 
 const SPINNER = { plugin: 'loopline', component: 'Spinner', props: { word: 'Thinking', message: null, suffix: '…', mode: 'tool-use' } } as const
@@ -217,6 +219,37 @@ describe('the spinner', () => {
     await sub.unmount()
     const main = await $.ui.mount({ ...SPINNER, surface: 'terminal', requestId: 'main' })
     expect(await main.find({ text: 'Thinking · 1 tool · 1 edit/1 file…' })).toBeDefined()
+  })
+})
+
+describe('the branch', () => {
+  test('commits ahead of the upstream show by it until a push; a gone, missing or detached upstream shows none', async ($, on) => {
+    const clock = mock.clock(on, { now: NOW })
+    const { git } = host(on)
+    const ahead = '## feature/loop...origin/feature/loop [ahead 2, behind 5]'
+    const shows = async (pattern: RegExp) => {
+      const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+      const found = await band.find({ text: pattern })
+      await band.unmount()
+      return found
+    }
+    git.head = ahead
+    await start($)
+    expect(await shows(/feature\/loop ↑2 \+12 −3 \(2\) · Opus5\.5/)).toBeDefined()
+
+    git.head = '## feature/loop...origin/feature/loop'
+    await clock.advance(3_000)
+    await $.tool.call({ tool: 'Bash', command: 'git push' })
+    expect(await shows(/feature\/loop \+12 −3 \(2\) · Opus5\.5/)).toBeDefined()
+
+    for (const head of ['## feature/loop...origin/feature/loop [gone]', '## feature/loop', '## HEAD (no branch)']) {
+      git.head = ahead
+      await clock.advance(20_000)
+      expect(await shows(/↑2/)).toBeDefined()
+      git.head = head
+      await clock.advance(20_000)
+      expect(await shows(/feature\/loop \+12 −3 \(2\) · Opus5\.5/)).toBeDefined()
+    }
   })
 })
 
