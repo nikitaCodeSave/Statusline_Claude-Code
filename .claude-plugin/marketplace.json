@@ -8,7 +8,7 @@
     {
       "name": "loopline",
       "source": "./",
-      "description": "Status band above the prompt with Claude Code session state: model and effort, uncommitted diff, context with growth and compactions, cost, rate-limit pace, prompt-cache clock, live turn counters, background agents and a stuck-call warning"
+      "description": "Status band above the prompt with Claude Code session state: model and effort, unpushed commits and uncommitted diff, context with growth and compactions, cost, rate-limit pace, prompt-cache clock, live turn counters, background agents and a stuck-call warning"
     }
   ]
 }
